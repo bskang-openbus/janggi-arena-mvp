@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
 import { JanggiScene } from "@/src/components/board/JanggiScene";
 import { SIDE_THEME } from "@/src/components/board/palette";
 import { SIDE_LABEL } from "@/src/game/adapters";
 import { useGameStore } from "@/src/game/store";
 import { CapturedPanel } from "./CapturedPanel";
+import { CinematicOverlay } from "./CinematicOverlay";
 import { E2EBridge } from "./E2EBridge";
 import { ResultOverlay } from "./ResultOverlay";
+import { SettingsOverlay } from "./SettingsOverlay";
 
 /** 대국 화면 (docs/PRD.md 4절): 3D 보드 중앙, 상단 턴·장군, 좌우 잡힌 말, 하단 조작. */
 export function GameScreen() {
@@ -24,22 +26,40 @@ export function GameScreen() {
   const result = useGameStore((s) => s.state.result);
   const moveCount = useGameStore((s) => s.state.history.length);
 
+  const cinematic = useGameStore((s) => s.cinematic);
+  const cinematicPhase = useGameStore((s) => s.cinematicPhase);
+  const decals = useGameStore((s) => s.decals);
+  const settings = useGameStore((s) => s.settings);
+  const settingsOpen = useGameStore((s) => s.settingsOpen);
+
   const selectPiece = useGameStore((s) => s.selectPiece);
   const clickSquare = useGameStore((s) => s.clickSquare);
   const pass = useGameStore((s) => s.pass);
   const restart = useGameStore((s) => s.restart);
   const goTitle = useGameStore((s) => s.goTitle);
+  const endCinematic = useGameStore((s) => s.endCinematic);
+  const skipCinematic = useGameStore((s) => s.skipCinematic);
+  const commitDecal = useGameStore((s) => s.commitDecal);
+  const openSettings = useGameStore((s) => s.openSettings);
+  const updateSettings = useGameStore((s) => s.updateSettings);
+  const hydrateSettings = useGameStore((s) => s.hydrateSettings);
 
-  const [lowSpec, setLowSpec] = useState(false);
+  // localStorage is client-only; SSR renders the defaults and this reconciles
+  useEffect(() => {
+    hydrateSettings();
+  }, [hydrateSettings]);
 
   const turnTheme = SIDE_THEME[turn];
   const inCheck = checkSide !== null;
+  const playing = cinematicPhase === "cinematic";
+  const lowSpec = settings.lowSpec;
 
   return (
     <main
       data-testid="game-screen"
       data-turn={turn}
       data-result={result ? result.type : "playing"}
+      data-cinematic={cinematicPhase}
       className="relative h-dvh w-full touch-none overflow-hidden bg-[#05060b]"
     >
       <JanggiScene
@@ -51,8 +71,19 @@ export function GameScreen() {
         onSquareClick={clickSquare}
         onPieceClick={selectPiece}
         lowSpec={lowSpec}
+        cinematic={cinematic}
+        gore={settings.gore}
+        decals={decals}
+        onCinematicEnd={endCinematic}
+        onDecalCommit={commitDecal}
       />
 
+      {/* HUD dims while the cinematic runs so the duel owns the frame */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-10 transition-opacity duration-300 ${
+          playing ? "opacity-35" : "opacity-100"
+        }`}
+      >
       {/* ── 상단: 턴 표시 + 장군 경고 + 마지막 수 ─────────────────── */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-center gap-2 p-3 md:p-5">
         <div className="flex items-center gap-2">
@@ -130,7 +161,7 @@ export function GameScreen() {
         </ControlButton>
         <ControlButton
           testId="lowspec-button"
-          onClick={() => setLowSpec((v) => !v)}
+          onClick={() => updateSettings({ lowSpec: !lowSpec })}
           active={lowSpec}
           title="후처리 효과를 끄고 가볍게 렌더합니다"
         >
@@ -138,9 +169,8 @@ export function GameScreen() {
         </ControlButton>
         <ControlButton
           testId="settings-button"
-          onClick={() => undefined}
-          disabled
-          title="설정 오버레이(혈흔·사운드·저사양)는 P6에서 제공됩니다"
+          onClick={() => openSettings(true)}
+          title="혈흔·사운드·저사양 설정을 엽니다"
         >
           설정
         </ControlButton>
@@ -152,8 +182,19 @@ export function GameScreen() {
           타이틀
         </ControlButton>
       </div>
+      </div>
 
-      {result && (
+      {playing && <CinematicOverlay onSkip={skipCinematic} />}
+
+      {settingsOpen && (
+        <SettingsOverlay
+          settings={settings}
+          onChange={updateSettings}
+          onClose={() => openSettings(false)}
+        />
+      )}
+
+      {result && !playing && (
         <ResultOverlay result={result} onRematch={restart} onTitle={goTitle} />
       )}
 

@@ -1,16 +1,36 @@
 "use client";
 
 import { OrbitControls } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef } from "react";
-import { ACESFilmicToneMapping, HalfFloatType, type PerspectiveCamera } from "three";
+import {
+  ACESFilmicToneMapping,
+  type DirectionalLight,
+  HalfFloatType,
+  type HemisphereLight,
+  type AmbientLight,
+  type PerspectiveCamera,
+  type PointLight,
+  type SpotLight,
+} from "three";
 import { BoardMesh } from "./BoardMesh";
 import { BOARD_D, BOARD_W, squareKey } from "./layout";
 import { DestinationMarkers, LastMoveTrail } from "./Markers";
 import { BOARD_COLORS } from "./palette";
 import { PieceMesh } from "./PieceMesh";
 import type { PieceView, Side, SquareRef } from "./types";
+import { type BloodDecal, BloodDecals } from "./vfx/BloodDecals";
+import { CaptureFX } from "./vfx/CaptureFX";
+import { CinematicDirector } from "./vfx/CinematicDirector";
+import { type CinematicPlan, stage } from "./vfx/stage";
+
+/**
+ * Dev/E2E only: lets Playwright read the framebuffer back (`sampleFrame`) to
+ * prove the cinematic frame is not a blank screen. Off in production builds.
+ */
+const ALLOW_FRAME_READBACK =
+  process.env.NEXT_PUBLIC_E2E === "1" || process.env.NODE_ENV !== "production";
 
 /**
  * Pure presentation contract. Every piece of game state arrives as a prop —
@@ -28,6 +48,18 @@ export interface JanggiSceneProps {
   onPieceClick: (id: string) => void;
   /** low-spec mode: skips post-processing and heavy shadow maps */
   lowSpec?: boolean;
+
+  /* ── P3 포획 연출 ─────────────────────────────────────────────── */
+  /** non-null while the capture cinematic plays */
+  cinematic?: CinematicPlan | null;
+  /** 혈흔 표현 ON/OFF (PRD 2절) */
+  gore?: boolean;
+  /** 바닥에 남은 혈흔 자국 */
+  decals?: BloodDecal[];
+  /** the timeline ran to its end (2.8s) */
+  onCinematicEnd?: () => void;
+  /** 1.5s — commit the 혈흔 데칼 so it survives the cinematic */
+  onDecalCommit?: () => void;
 }
 
 const CAMERA_FOV = 38;
@@ -106,15 +138,47 @@ function AutoFrame({ userMoved }: { userMoved: React.RefObject<boolean> }) {
   return null;
 }
 
+/**
+ * 배경 암전 (SCENES.md 2절 0.0s) — the cinematic pulls the room lights down so
+ * only the two duelling pieces and their effects carry the frame.
+ */
 function SceneLights({ lowSpec }: { lowSpec: boolean }) {
   const shadowSize = lowSpec ? 1024 : 2048;
+  const ambient = useRef<AmbientLight>(null);
+  const hemi = useRef<HemisphereLight>(null);
+  const key = useRef<SpotLight>(null);
+  const fill = useRef<DirectionalLight>(null);
+  const rimA = useRef<PointLight>(null);
+  const rimB = useRef<PointLight>(null);
+
+  useFrame(() => {
+    const dim = stage.dim;
+    if (dim <= 0 && !stage.active) {
+      if (ambient.current) ambient.current.intensity = 0.34;
+      if (hemi.current) hemi.current.intensity = 0.36;
+      if (key.current) key.current.intensity = 520;
+      if (fill.current) fill.current.intensity = 0.42;
+      if (rimA.current) rimA.current.intensity = 38;
+      if (rimB.current) rimB.current.intensity = 38;
+      return;
+    }
+    const flash = 1 + stage.flash * 1.4;
+    if (ambient.current) ambient.current.intensity = 0.34 * (1 - 0.8 * dim);
+    if (hemi.current) hemi.current.intensity = 0.36 * (1 - 0.8 * dim);
+    if (key.current) key.current.intensity = 520 * (1 - 0.62 * dim) * flash;
+    if (fill.current) fill.current.intensity = 0.42 * (1 - 0.85 * dim);
+    if (rimA.current) rimA.current.intensity = 38 * (1 - 0.5 * dim);
+    if (rimB.current) rimB.current.intensity = 38 * (1 - 0.5 * dim);
+  }, -1);
+
   return (
     <>
-      <ambientLight intensity={0.34} color="#59688f" />
-      <hemisphereLight args={["#6d7ea9", "#14100c", 0.36]} />
+      <ambientLight ref={ambient} intensity={0.34} color="#59688f" />
+      <hemisphereLight ref={hemi} args={["#6d7ea9", "#14100c", 0.36]} />
 
       {/* key light — a broad warm pool centred on the board */}
       <spotLight
+        ref={key}
         position={[1.2, 16, 5.5]}
         angle={0.72}
         penumbra={0.85}
@@ -130,6 +194,7 @@ function SceneLights({ lowSpec }: { lowSpec: boolean }) {
 
       {/* soft warm fill so the wood grain reads at the far edge */}
       <directionalLight
+        ref={fill}
         position={[6.5, 8.5, -4]}
         intensity={0.42}
         color="#ffcf9c"
@@ -137,6 +202,7 @@ function SceneLights({ lowSpec }: { lowSpec: boolean }) {
 
       {/* faction rim lights — the 판타지 half of the tone */}
       <pointLight
+        ref={rimA}
         position={[-8, 2.2, 7.5]}
         intensity={38}
         distance={24}
@@ -144,6 +210,7 @@ function SceneLights({ lowSpec }: { lowSpec: boolean }) {
         color="#19c4a6"
       />
       <pointLight
+        ref={rimB}
         position={[8, 2.2, -7.5]}
         intensity={38}
         distance={24}
@@ -162,7 +229,13 @@ function BoardContents({
   checkSide,
   onSquareClick,
   onPieceClick,
-}: Omit<JanggiSceneProps, "lowSpec">) {
+  lowSpec = false,
+  cinematic = null,
+  gore = true,
+  decals = [],
+  onCinematicEnd,
+  onDecalCommit,
+}: JanggiSceneProps) {
   const occupied = useMemo(() => {
     const s = new Set<string>();
     for (const p of pieces) s.add(squareKey(p));
@@ -184,6 +257,25 @@ function BoardContents({
   return (
     <>
       <BoardMesh onSquareClick={onSquareClick} />
+
+      <BloodDecals decals={decals} />
+
+      <CinematicDirector
+        plan={cinematic}
+        gore={gore}
+        homeTarget={SCENE_TARGET}
+        onEnd={onCinematicEnd ?? noop}
+        onDecal={onDecalCommit ?? noop}
+      />
+
+      {cinematic && (
+        <CaptureFX
+          key={cinematic.seq}
+          plan={cinematic}
+          gore={gore}
+          lowSpec={lowSpec}
+        />
+      )}
 
       {lastMove && (
         <LastMoveTrail
@@ -212,6 +304,8 @@ function BoardContents({
  * 3D 장기판 + 기물 프레젠테이션 레이어.
  * Renders its own <Canvas> and fills the parent element.
  */
+function noop() {}
+
 export function JanggiScene({ lowSpec = false, ...rest }: JanggiSceneProps) {
   const userMoved = useRef(false);
 
@@ -229,6 +323,7 @@ export function JanggiScene({ lowSpec = false, ...rest }: JanggiSceneProps) {
         antialias: true,
         toneMapping: ACESFilmicToneMapping,
         toneMappingExposure: 1.05,
+        preserveDrawingBuffer: ALLOW_FRAME_READBACK,
       }}
       camera={{
         fov: CAMERA_FOV,
@@ -243,7 +338,7 @@ export function JanggiScene({ lowSpec = false, ...rest }: JanggiSceneProps) {
 
       <AutoFrame userMoved={userMoved} />
       <SceneLights lowSpec={lowSpec} />
-      <BoardContents {...rest} />
+      <BoardContents lowSpec={lowSpec} {...rest} />
 
       <OrbitControls
         makeDefault

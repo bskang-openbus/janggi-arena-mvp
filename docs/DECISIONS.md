@@ -116,3 +116,27 @@
   2. 인위 국면에서 적 궁 포획 수가 생성됨 (실전 도달 불가 증명됨) — 커스텀 국면 설계 시 유의
   3. RULES.md V01/V14/V15 수치는 문서 오류로 판명 (구현·DECISIONS 정정본이 기하학적으로 타당함을 독립 재유도로 확인)
 - 영향: packages/engine/src/audit.test.ts 신설, 이후 회귀 게이트에 포함
+
+### [2026-08-03 04:35] P3 Tier1 공통 포획 연출 — 상태머신·시간축·확장 슬롯 구조
+- 배경: 60fps로 흐르는 2.9초 연출을 React 상태로 돌리면 매 프레임 대국 화면 전체가 리렌더된다. 동시에 E2E와 P4는 "지금 연출 중인가"를 알아야 한다
+- 결정 및 사유:
+  1. **상태를 2층으로 분리** — 거친 위상(`cinematicPhase: "idle" | "cinematic"` + `cinematic: CinematicPlan | null`)만 zustand에 두고, 매 프레임 값(t/attackerPos/dim/flash/trauma/awaken)은 `board/vfx/stage.ts`의 **가변 싱글턴**에 쓴다. 디렉터가 `useFrame(priority -2)`에서 1회 갱신하고, PieceMesh·이펙트 메시·DOM 플래시가 각자의 프레임 루프에서 읽는다. React `set()`은 연출당 2회(진입/종료)뿐
+  2. **프레임 우선순위 −2** — drei OrbitControls가 −1, 기물이 0, postprocessing이 +1이므로 디렉터가 항상 먼저 돈다. OrbitControls는 `controls.enabled`를 **명령형으로** 끈다(프롭으로 넘기면 스킵 직후 복귀 러프와 싸운다). drei가 `enabled`를 프롭으로 재적용하지 않는 것을 소스로 확인
+  3. **히트스톱은 시간축 매핑으로** — `stageTime(raw)`가 1.2s에서 100ms 동안 t를 고정한다. 모든 이펙트가 t만 보므로 히트스톱이 자동으로 전파되고, 붉은 플래시가 정지 구간 내내 유지되어 타격감이 강해진다. 실제 소요 = 2.8 + 0.1 = 2.9초 (PRD 6절 2.5~3.5초 범위)
+  4. **연출 연출용 무대 위치(staging)** — 공격 기물을 원래 출발칸에 세우면 a1→a7 같은 장거리 포획에서 두 기물이 6칸 떨어져 "측면 줌"이 불가능하다. 0~0.34s 동안 출발칸 → `피격칸 − dir×1.15`로 활주시킨 뒤 그 지점에서 소환진을 편다. 덕분에 **이동 거리와 무관하게 프레이밍이 동일**하다. 타격 정지 간격 `STRIKE_GAP=0.64`는 두 기물 반지름 합(~0.6)보다 커야 한다 — 처음 0.2로 잡았더니 공격 기물이 피격 기물을 완전히 가렸다(스크린샷 1차 이터레이션에서 발견)
+  5. **P4 확장 슬롯 = attackVariant 레지스트리** (`board/vfx/attackVariants.ts`) — 0.8~1.2s 구간은 `offset(ctx) → [x,y,z]`(무대 위치 기준 월드 오프셋), `awaken(ctx)`, `Extras`(연출 내내 마운트되는 추가 3D 컴포넌트) 세 개로만 정의된다. P3는 `lunge`(전방 돌진) 하나만 등록. P4는 `registerAttackVariant()` + `PIECE_VARIANT[type] = id` 두 줄이면 꽂힌다. 타임라인·카메라·입력잠금·스킵은 손댈 필요 없음
+  6. **피격 기물 고스트** — 엔진은 포획 즉시 기물을 지우므로 `CinematicPlan.victim`이 뷰 사본을 들고 있고 `GhostPiece`가 커스텀 `ShaderMaterial`로 렌더한다. 디졸브는 월드 좌표 3D value-noise + 높이 바이어스(아래→위 붕괴) 임계값이며 경계 밴드에 주홍(#ff7a2e) 발광을 3.4배로 얹는다. 조명은 wrap-lambert + 프레넬 림(암전 속에서만 보이므로 이걸로 충분). 색·경계폭·노이즈 스케일 전부 유니폼 → P4에서 기물별 재색조 가능
+  7. **파티클은 CPU 해석해(analytic)** — `x(t) = v₀(1−e^(−kt))/k + ½gt²`. 프레임 누적이 아니라 t로부터 직접 계산하므로 프레임 드랍이 궤적을 어긋내지 못하고 스크린샷이 재현된다. 시드는 `mulberry32`. 총량 스파크 150 + 혈흔/백금 120 + 재 96 = **366개(3 draw call)**, 저사양 모드에서 절반
+  8. **혈흔 데칼은 연출보다 오래 산다** — 1.5s에 `commitDecal()`로 영구 목록에 옮기고 최대 10개(오래된 것부터 폐기), 재시작 시 초기화. 스킵해도 같은 최종 상태로 점프한다. 포획칸에는 **공격 기물이 올라서므로** 데칼을 타격 방향으로 0.42유닛 밀어 그리지 않으면 영원히 가려진다
+  9. **입력 잠금은 2중** — 스토어 액션(`selectPiece`/`clickSquare`/`pass`)이 위상을 검사하고, 동시에 화면 전체를 덮는 DOM 오버레이(z-30)가 캔버스로 가는 포인터 이벤트를 막는다. 그 오버레이 자체가 스킵 히트박스라서 "아무 데나 탭 = 스킵"이 공짜로 나온다
+  10. **설정은 localStorage 직접 사용** — `zustand/persist`는 CLAUDE.md 4절 의존성 고정 때문에 쓰지 않았다. SSR은 기본값으로 렌더하고 마운트 후 `hydrateSettings()`로 맞춘다(하이드레이션 불일치 회피)
+- 연출 파라미터(스크린샷 3회 자가 평가로 확정): 카메라 측면 3.2유닛·높이 2.6(약 38° 고도)·타깃 y0.28, 암전 주변광 −80%/키라이트 −62%, 붉은 플래시 최대 0.55(mix-blend-screen), 트라우마 흔들림 진폭 0.24·감쇠 3.1, 충격파 링 2겹(0.62s/0.4s), 디졸브 0.72초, 각인 발광 상한 1.0(넘기면 한자가 흰 덩어리로 뭉개짐)
+- 영향: `apps/web/src/components/board/vfx/*`(신규 9파일), `board/{JanggiScene,PieceMesh}.tsx`, `src/game/store.ts`, `src/components/game/{GameScreen,CinematicOverlay,SettingsOverlay,E2EBridge}.tsx`, `e2e/{helpers.ts,capture-cinematic.spec.ts}`
+
+### [2026-08-03 04:35] P3 — E2E가 "연출이 실제로 그려졌는지"를 검증하는 방법
+- 배경: 스크린샷을 저장해도 그것이 빈 화면인지 판별하지 못하면 회귀를 놓친다. 또 기존 12개 테스트는 수와 수 사이에 연출이 끼면서 입력이 막혀 전부 깨질 위험이 있었다
+- 결정:
+  - `JanggiScene`이 **개발/E2E 빌드에서만** `preserveDrawingBuffer`를 켠다. 브리지의 `sampleFrame()`이 WebGL 캔버스를 192×120 2D 캔버스로 `drawImage` 후 `getImageData`로 평균 휘도·밝은 픽셀 비율·유채색 비율을 계산한다. 연출 프레임이 포획 직전 프레임보다 밝은 픽셀이 많아야 통과 → "흰/검은 빈 화면"이 구조적으로 실패한다
+  - `playMoves`에 `cinematics: "skip" | "watch"` 옵션 추가, 기본 "skip". 기존 기보 재생 테스트는 매 수 뒤 `skipCinematic()`(= 사용자가 탭하는 것과 동일한 액션)을 호출하고 위상이 idle인지까지 확인한다. 연출 자체를 검증하는 신규 4개 테스트만 실제로 재생
+  - 스크린샷 지연 보정: SwiftShader에서 캔버스 스크린샷이 ~0.3초 걸리므로 목표 비트보다 **먼저** 셔터를 연다(타격 프레임은 t=1.02에서 요청). 캡처 후 `cinematicT`를 다시 읽어 1.02~2.3 구간 안이었음을 어서션
+- 영향: `apps/web/e2e/helpers.ts`, `apps/web/e2e/capture-cinematic.spec.ts`, `src/components/game/E2EBridge.tsx`, `src/components/board/JanggiScene.tsx`

@@ -11,6 +11,7 @@
  *
  * Presentation layer only: nothing here imports from `src/game` or `engine`.
  */
+import { squareToWorld } from "../layout";
 import type { PieceView, SquareRef } from "../types";
 
 /** docs/SCENES.md 2절 — the common Tier 1 timeline, in cinematic seconds. */
@@ -46,8 +47,12 @@ export function stageTime(raw: number): number {
 
 /** How far in front of the victim the attacker stages before it strikes. */
 export const STAGE_GAP = 1.15;
-/** Gap left between the two pieces at the moment of impact. */
-export const STRIKE_GAP = 0.2;
+/**
+ * Gap left between the two pieces at the moment of impact. Must stay above
+ * the sum of two piece radii (~0.6) or the attacker simply occludes its
+ * victim and the whole duel reads as one blob.
+ */
+export const STRIKE_GAP = 0.64;
 
 /* ------------------------------------------------------------------ */
 /* Plan                                                                */
@@ -136,6 +141,52 @@ export function resetStage(): void {
   stage.dim = 0;
   stage.flash = 0;
   stage.trauma = 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Duel geometry (shared by the director and the effect meshes)        */
+/* ------------------------------------------------------------------ */
+
+export interface DuelGeometry {
+  /** attacker's square before the move */
+  from: [number, number, number];
+  /** victim's square = attacker's square after the move */
+  to: [number, number, number];
+  /** where the attacker stands while the 소환진 unfolds */
+  staging: [number, number, number];
+  /** attacker position at the exact moment of impact */
+  strike: [number, number, number];
+  /** attacker → victim unit vector on the XZ plane */
+  dir: [number, number, number];
+  /** distance the attacker covers during the attack window */
+  reach: number;
+}
+
+/**
+ * Long captures (a 차 crossing six ranks) are staged just short of the victim
+ * so every cinematic frames identically regardless of move length.
+ */
+export function duelGeometry(plan: CinematicPlan): DuelGeometry {
+  const [fx, , fz] = squareToWorld(plan.from.file, plan.from.rank);
+  const [tx, , tz] = squareToWorld(plan.to.file, plan.to.rank);
+  let dx = tx - fx;
+  let dz = tz - fz;
+  const len = Math.hypot(dx, dz) || 1;
+  dx /= len;
+  dz /= len;
+
+  const gap = Math.min(STAGE_GAP, len);
+  const reach = Math.max(0.25, gap - STRIKE_GAP);
+  const staging: [number, number, number] = [tx - dx * gap, 0, tz - dz * gap];
+
+  return {
+    from: [fx, 0, fz],
+    to: [tx, 0, tz],
+    staging,
+    strike: [staging[0] + dx * reach, 0, staging[2] + dz * reach],
+    dir: [dx, 0, dz],
+    reach,
+  };
 }
 
 /* ------------------------------------------------------------------ */

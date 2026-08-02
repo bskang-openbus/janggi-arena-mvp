@@ -2,6 +2,7 @@
 
 import { parseNotation, toNotation } from "engine";
 import { useEffect } from "react";
+import { stage } from "@/src/components/board/vfx/stage";
 import { pieceAtSquare } from "@/src/game/adapters";
 import { useGameStore } from "@/src/game/store";
 
@@ -28,6 +29,8 @@ export interface JanggiTestApi {
   playAll: (moves: { from: string; to: string }[]) => void;
   /** 한수쉼 — same action the pass button dispatches */
   pass: () => void;
+  /** 연출 스킵 — same action a tap on the cinematic overlay dispatches */
+  skipCinematic: () => void;
   snapshot: () => {
     turn: string;
     result: string | null;
@@ -35,7 +38,19 @@ export interface JanggiTestApi {
     selected: string | null;
     highlights: string[];
     lastCapture: { seq: number; type: string; side: string } | null;
+    /** "idle" | "cinematic" */
+    cinematic: string;
+    /** cinematic seconds elapsed (hitstop-frozen), 0 when idle */
+    cinematicT: number;
+    decals: number;
+    gore: boolean;
   };
+  /**
+   * Reads the WebGL framebuffer back through a 2D canvas so a test can prove
+   * a frame is not blank. Needs `preserveDrawingBuffer`, which JanggiScene
+   * only enables outside production builds.
+   */
+  sampleFrame: () => { mean: number; hot: number; colored: number } | null;
 }
 
 declare global {
@@ -80,6 +95,36 @@ export function E2EBridge() {
       pass: () => {
         useGameStore.getState().pass();
       },
+      skipCinematic: () => {
+        useGameStore.getState().skipCinematic();
+      },
+      sampleFrame: () => {
+        const canvas = document.querySelector("canvas");
+        if (!canvas) return null;
+        const w = 192;
+        const h = 120;
+        const off = document.createElement("canvas");
+        off.width = w;
+        off.height = h;
+        const ctx = off.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return null;
+        ctx.drawImage(canvas, 0, 0, w, h);
+        const { data } = ctx.getImageData(0, 0, w, h);
+        let sum = 0;
+        let hot = 0;
+        let colored = 0;
+        const n = w * h;
+        for (let i = 0; i < n; i += 1) {
+          const r = data[i * 4];
+          const g = data[i * 4 + 1];
+          const b = data[i * 4 + 2];
+          const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          sum += lum;
+          if (lum > 150) hot += 1;
+          if (Math.max(r, g, b) - Math.min(r, g, b) > 45) colored += 1;
+        }
+        return { mean: sum / n, hot: hot / n, colored: colored / n };
+      },
       snapshot: () => {
         const s = useGameStore.getState();
         return {
@@ -95,6 +140,10 @@ export function E2EBridge() {
                 side: s.lastCapture.captured.side,
               }
             : null,
+          cinematic: s.cinematicPhase,
+          cinematicT: stage.active ? stage.t : 0,
+          decals: s.decals.length,
+          gore: s.settings.gore,
         };
       },
     };

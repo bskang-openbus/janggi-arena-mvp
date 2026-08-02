@@ -163,8 +163,8 @@ export function ParticleBurst({ spec }: { spec: BurstSpec }) {
     geometry.setAttribute("aSize", new BufferAttribute(size, 1));
     geometry.setAttribute("aAngle", new BufferAttribute(angle, 1));
     geometry.setAttribute("aColor", new BufferAttribute(color, 3));
+    // positions are rewritten every frame; culling is handled on the object
     geometry.boundingSphere = null;
-    geometry.frustumCulled = false;
 
     const material = new ShaderMaterial({
       vertexShader,

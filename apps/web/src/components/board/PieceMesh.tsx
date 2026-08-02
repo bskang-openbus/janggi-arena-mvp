@@ -15,6 +15,7 @@ import { PIECE_METRICS, squareToWorld } from "./layout";
 import { MARKER_COLORS, SIDE_THEME } from "./palette";
 import { getGlowTexture, getGlyphTexture, getGrainTexture } from "./textures";
 import type { PieceView } from "./types";
+import { stage } from "./vfx/stage";
 
 export interface PieceMeshProps {
   piece: PieceView;
@@ -80,12 +81,24 @@ export function PieceMesh({
     const t = state.clock.elapsedTime;
     const dt = Math.min(delta, 0.05);
 
-    // glide toward the target intersection (P2 will change file/rank)
+    // While a capture cinematic runs, the director owns the attacker's
+    // transform (staging → lunge → settle); every other piece keeps gliding.
+    const directed = stage.active && stage.attackerId === piece.id;
+
     const root = rootRef.current;
     if (root) {
-      const k = 1 - Math.pow(0.0006, dt);
-      root.position.x += (target[0] - root.position.x) * k;
-      root.position.z += (target[2] - root.position.z) * k;
+      if (directed) {
+        root.position.set(
+          stage.attackerPos[0],
+          stage.attackerPos[1],
+          stage.attackerPos[2],
+        );
+      } else {
+        const k = 1 - Math.pow(0.0006, dt);
+        root.position.x += (target[0] - root.position.x) * k;
+        root.position.y += (0 - root.position.y) * k;
+        root.position.z += (target[2] - root.position.z) * k;
+      }
     }
 
     // selection lift + gentle hover
@@ -96,22 +109,37 @@ export function PieceMesh({
     }
 
     const pulse = 0.5 + 0.5 * Math.sin(t * 3.4);
-    const awake = selected ? 1 : 0;
+    // 각인 발광 상승 (SCENES.md 2절 0.3s) — the cinematic drives it far past
+    // the selection level so the attacking piece reads as "각성"한 상태.
+    const awake = Math.max(selected ? 1 : 0, directed ? stage.awaken : 0);
+    // the engraving has to read as light, not as a blown-out hole — cap what
+    // the emissive maps get even when the cinematic drives `awaken` past 1
+    const glowAwake = Math.min(awake, 1);
 
     if (bodyMatRef.current) {
       bodyMatRef.current.emissiveIntensity =
-        0.18 + awake * (0.45 + pulse * 0.35);
+        0.18 + glowAwake * (0.45 + pulse * 0.35);
     }
     if (faceMatRef.current) {
-      faceMatRef.current.emissiveIntensity = 0.6 + awake * (0.9 + pulse * 0.6);
+      faceMatRef.current.emissiveIntensity =
+        0.6 + glowAwake * (0.3 + pulse * 0.22);
     }
     if (rimMatRef.current) {
-      rimMatRef.current.opacity = 0.6 + awake * (0.3 + pulse * 0.1);
+      rimMatRef.current.opacity = Math.min(
+        1,
+        0.6 + glowAwake * (0.3 + pulse * 0.1),
+      );
     }
     if (glowMatRef.current) {
-      const wanted = selected ? 0.4 + pulse * 0.2 : 0;
-      glowMatRef.current.opacity +=
-        (wanted - glowMatRef.current.opacity) * (1 - Math.pow(0.004, dt));
+      const wanted = directed
+        ? Math.min(0.38, stage.awaken * 0.22)
+        : selected
+          ? 0.4 + pulse * 0.2
+          : 0;
+      // the cinematic snaps the glow on; normal play eases it
+      glowMatRef.current.opacity += directed
+        ? (wanted - glowMatRef.current.opacity) * (1 - Math.pow(1e-9, dt))
+        : (wanted - glowMatRef.current.opacity) * (1 - Math.pow(0.004, dt));
     }
     if (alertRef.current && alertMatRef.current) {
       const wanted = alerted ? 0.42 + pulse * 0.45 : 0;
