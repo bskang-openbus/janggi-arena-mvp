@@ -83,11 +83,12 @@
 
 ## P6. 마감 (스트레치)
 
-- [ ] 사운드: Web Audio 합성 SFX (선택·이동·타격·외통), 음소거 토글
-- [ ] 저사양 모드: 파티클 수 감소 + 블룸 OFF 토글
-- [ ] 결과 화면 마감, 타이틀 화면 스타일링 (Pretendard, 전통 문양 배경은 SVG 프로시저럴)
-- [ ] README.md: 실행 방법, 구조, 스크린샷 첨부
-- [ ] Docker Compose (web + server) 작성, 빌드 확인
+- [x] 사운드: Web Audio 합성 SFX (선택·이동·타격·외통), 음소거 토글 — 합성 전용(외부 파일 0), 연출 비트(소환진·공격 7종 변주·타격·디졸브)까지 rAF로 동기. E2E 3개
+- [x] 저사양 모드: 파티클 수 감소 + 블룸 OFF 토글 — 후처리(블룸·비네트) OFF + dpr 1x + 그림자 1024px + **모든 이미터 50%**(공통 366→183, 포 연기 48→24)
+- [x] 결과 화면 마감, 타이틀 화면 스타일링 (Pretendard, 전통 문양 배경은 SVG 프로시저럴) — 로고 Pretendard 900 + 잉크→금박 그라디언트, 배경 문양 전량 코드 생성(팔괘·격자·구름), 결과 오버레이를 타이틀과 같은 문법으로 통일 + 무승부 사유 룰 근거 표기
+- [x] README.md: 실행 방법, 구조, 스크린샷 첨부 — 스크린샷 5장(타이틀·대국·포획 연출·외통·온라인)
+- [x] Docker Compose (web + server) 작성, 빌드 확인 — `docker compose build` 2개 이미지 성공(web 279MB standalone / server 296MB), `up -d` 후 `/health` 200 · 타이틀 200 확인
+- 게이트: `pnpm -F engine test` 215 && `pnpm -F server test` 51 && `pnpm -F web build` && `pnpm -F web e2e` **26개 green**
 
 ---
 
@@ -108,6 +109,12 @@
 - [P5] 연출 중 수신 스냅샷 큐잉 — 서버는 상대 수를 즉시 브로드캐스트하므로 내 포획 연출 중에 다음 국면이 도착한다. 큐에 쌓았다가 연출 종료 후 반영
 - [P5] 결과 오버레이 확장 — 서버 판정(기권·시간 초과·자동 한수쉼 몰수)은 엔진 `GameResult`에 없는 종류다. 오버레이가 문구를 직접 받도록 일반화
 - [P5] 서버 주소 런타임 오버라이드(`?server=`) — env는 빌드 시점에 박혀 "서버가 꺼진 상태"를 E2E로 재현할 수 없었다 (CLAUDE.md 절대 규칙 7의 회귀 방지용)
+- [P6] `SfxDirector` 전역화 — 대국 화면에만 붙어 있어 타이틀·로비 버튼음이 없었고, 오디오 잠금을 푸는 첫 제스처(= "로컬 대국" 클릭)가 유실됐다 → `app/page.tsx` 루트로 이동
+- [P6] 저사양 모드가 **변주 이미터를 놓치고 있었다** — 포 연기 기둥(48)이 감소 대상에서 빠져 있었음 → `AttackExtrasProps.lowSpec` 추가로 연결
+- [P6] 타이틀 "설정" 버튼 실연결 — PRD 4절이 타이틀 버튼에 설정을 명시하는데 오버레이가 대국 화면에만 있어 `disabled` 상태였다
+- [P6] 무승부 사유의 룰 근거 표기 — 결과 오버레이가 "빅장 — 두 궁이 마주 봄"처럼 사유 이름만 말해 규정을 모르는 사람에게 설명이 없었다
+- [P6] `.dockerignore` + `output: "standalone"` — Docker 항목에 명시되지 않았으나 둘 없이는 이미지가 pnpm/workspace 심볼릭 링크에 묶여 뜨지 않는다
+- [P6] E2E 타이틀 스크린샷의 웹폰트 대기(`waitForFonts`) — 없으면 Pretendard/시스템 폴백 사이에서 스크린샷이 매번 달라진다
 
 ---
 
@@ -119,3 +126,4 @@ ALL_DONE
 - 게이트: `pnpm -F engine test` 215 green · `pnpm -F web build` 성공 · `pnpm -F web e2e` **19개 green**
 - 남은 항목은 스트레치(P5 온라인 대국 / P6 마감)와 SKIP 처리된 2.5D 실루엣뿐
 - [2026-08-03 06:55] **P5(스트레치) 완료** — 온라인 1:1 대국(서버 + 웹 통합). 게이트 연속 2회: `pnpm -F engine test` 215 · `pnpm -F server test` 51 · `pnpm -F web build` · `pnpm -F web e2e` **23 green**. 남은 항목은 P6 마감과 2.5D 실루엣뿐
+- [2026-08-03 07:25] **P6(스트레치) 완료 — 전 페이즈 종료.** 사운드(합성 SFX 전역화)·저사양(이미터 전량 50%)·타이틀 스타일링(Pretendard + 프로시저럴 전통 문양)·결과 화면 통일·README·Docker Compose. 게이트: `pnpm -F engine test` **215** · `pnpm -F server test` **51** · `pnpm -F web build` 성공 · `pnpm -F web e2e` **26 green** · `docker compose build` 성공(+기동 스모크). **미완 항목은 P4의 2.5D 캐릭터 실루엣 `[S]` 하나뿐이며, 이는 SCENES.md 5절 지침에 따른 의도적 SKIP이다**

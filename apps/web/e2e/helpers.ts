@@ -143,6 +143,16 @@ export async function playMoves(
   }
 }
 
+/**
+ * Wait for the Pretendard webfont (CDN — CLAUDE.md 3절의 유일한 예외) to settle
+ * before a UI screenshot. Without this the 타이틀 shot is a coin flip between
+ * Pretendard and the system fallback. Resolves either way — a CDN failure is a
+ * fallback render, not a test failure.
+ */
+export async function waitForFonts(page: Page) {
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+}
+
 /** Procedural textures + the first bloom pass need a moment under SwiftShader. */
 export async function settleScene(page: Page, ms = 1800) {
   await page.waitForTimeout(ms);

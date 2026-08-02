@@ -41,15 +41,34 @@ export function ResultOverlay({
       aria-label="대국 결과"
       className="absolute inset-0 z-20 flex items-center justify-center bg-black/72 px-6 backdrop-blur-sm"
     >
-      <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-3xl border border-[#3a3126] bg-[#0a0910]/90 px-8 py-10 text-center">
-        <p className="text-[11px] tracking-[0.35em] text-[#8d8477]">대국 종료</p>
+      <div
+        className="flex w-full max-w-sm flex-col items-center gap-4 rounded-3xl border border-[#3a3126] bg-[#0a0910]/92 px-8 py-9 text-center"
+        style={{ boxShadow: `0 0 60px ${accent}22, inset 0 0 40px rgba(0,0,0,0.5)` }}
+      >
+        {/* 머리 장식 — 타이틀 화면과 같은 문법 (선–한자–선) */}
+        <div className="flex items-center gap-3">
+          <span className="h-px w-8 bg-gradient-to-r from-transparent to-[#6d5c42]" />
+          <span className="text-[10px] tracking-[0.5em] text-[#8d8477]">
+            對局終了
+          </span>
+          <span className="h-px w-8 bg-gradient-to-l from-transparent to-[#6d5c42]" />
+        </div>
+
         <h2
           data-testid="result-title"
-          className="text-4xl font-bold tracking-[0.2em]"
+          className="text-4xl font-black tracking-[0.2em]"
           style={{ color: accent, textShadow: `0 0 26px ${accent}66` }}
         >
           {title}
         </h2>
+
+        <span
+          className="h-px w-24"
+          style={{
+            background: `linear-gradient(90deg,transparent,${accent}88,transparent)`,
+          }}
+        />
+
         <p data-testid="result-detail" className="text-sm text-[#c9bda6]">
           {detail}
         </p>
@@ -57,12 +76,12 @@ export function ResultOverlay({
           <p className="text-[11px] leading-relaxed text-[#7a7264]">{note}</p>
         )}
 
-        <div className="mt-2 flex w-full flex-col gap-2 sm:flex-row">
+        <div className="mt-3 flex w-full flex-col gap-2 sm:flex-row">
           <button
             type="button"
             data-testid={primary.testId}
             onClick={primary.onClick}
-            className="flex-1 rounded-full border border-[#6d5c42] bg-black/50 px-5 py-2.5 text-sm tracking-widest text-[#f2e2c4] transition-colors hover:border-[#c9a86a] hover:text-[#ffeccb]"
+            className="flex-1 rounded-full border border-[#6d5c42] bg-black/50 px-5 py-2.5 text-sm font-semibold tracking-[0.18em] text-[#f2e2c4] transition-colors hover:border-[#c9a86a] hover:bg-[#2a1d0f]/70 hover:text-[#ffeccb]"
           >
             {primary.label}
           </button>
@@ -71,7 +90,7 @@ export function ResultOverlay({
               type="button"
               data-testid={secondary.testId}
               onClick={secondary.onClick}
-              className="flex-1 rounded-full border border-[#2c2721] bg-black/40 px-5 py-2.5 text-sm tracking-widest text-[#8d8477] transition-colors hover:border-[#4c453a] hover:text-[#c9bda6]"
+              className="flex-1 rounded-full border border-[#2c2721] bg-black/40 px-5 py-2.5 text-sm tracking-[0.18em] text-[#8d8477] transition-colors hover:border-[#4c453a] hover:text-[#c9bda6]"
             >
               {secondary.label}
             </button>

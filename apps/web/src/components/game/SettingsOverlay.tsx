@@ -24,12 +24,14 @@ const ROWS: ToggleRow[] = [
   {
     key: "sound",
     label: "사운드",
-    detail: "Web Audio 합성 효과음 (선택·착수·타격·외통). 끄면 오디오가 정지합니다",
+    detail:
+      "Web Audio 합성 효과음 (버튼·선택·착수·타격·외통). 끄면 오디오가 즉시 정지합니다",
   },
   {
     key: "lowSpec",
     label: "저사양 모드",
-    detail: "블룸·비네트 등 후처리를 끄고 파티클을 줄입니다",
+    detail:
+      "블룸·비네트 후처리 OFF · 파티클 절반 · 렌더 해상도 1x · 그림자 1024px. 연출 구성은 그대로입니다",
   },
 ];
 

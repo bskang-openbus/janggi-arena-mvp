@@ -227,3 +227,29 @@
 - 검증: `pnpm -F server test` 51 green · `pnpm -F engine test` 215 green · `pnpm -F web build` · `pnpm -F web e2e` **23 green**(기존 19 회귀 없음 + 온라인 4)
 - 서버 프로토콜 이슈: 없음. PROTOCOL.md만 보고 붙였고 계약과 어긋난 동작은 발견되지 않았다 (`room:join` ack가 `game:start` 브로드캐스트보다 늦게 도착할 수 있어 양쪽 모두에서 대국을 여는 것만 클라이언트가 처리)
 - 영향: `apps/web/src/net/{protocol,socket}.ts`(신설), `src/game/{online.ts(신설),store.ts,adapters.ts}`, `src/components/game/{OnlineLobby,OnlineHud}.tsx`(신설), `{GameScreen,TitleScreen,ResultOverlay,E2EBridge}.tsx`, `src/components/board/{JanggiScene,PieceMesh}.tsx`, `app/page.tsx`, `e2e/online-match.spec.ts`(신설), `playwright.config.ts`
+
+### [2026-08-03 07:20] P6 마감 — 사운드 전역화 · 저사양 · 타이틀 스타일링 · README · Docker
+
+- 배경: P6 잔여 항목(저사양 마감, 결과·타이틀 스타일링, README, Docker)과, 별도 브랜치에서 만들어져 `6e22a0d`로 머지된 사운드 시스템의 부착 위치 문제
+- 결정:
+  1. **`SfxDirector`를 `app/page.tsx` 루트로 올렸다** — 원래 `GameScreen`에만 붙어 있어 타이틀·로비 버튼음이 없었고, 더 나쁘게는 **브라우저 오디오 잠금을 푸는 "첫 사용자 제스처"가 하필 "로컬 대국" 버튼 클릭**이라 그 클릭이 통째로 유실됐다. 루트로 올리면 잠금 해제 리스너가 타이틀 진입 시점에 이미 살아 있다. 이중 마운트는 리스너·카운터를 두 배로 만들므로 `GameScreen` 쪽은 제거(주석으로 위치 명시). 사운드 E2E 3개 무회귀
+  2. **저사양 모드를 파티클까지 연결** — `lowSpec`이 후처리(블룸·비네트) OFF + dpr 1x + 그림자 1024px + `CaptureFX` 공통 이미터 0.5배까지는 이미 하고 있었으나, **변주가 자기 이미터를 들고 있으면 빠졌다**(포 = 연기 기둥 48개). `AttackExtrasProps`에 `lowSpec`을 추가해 전달하고 포 연기를 24개로 낮췄다. 지오메트리·셰이더 연출은 건드리지 않는다 — 연출의 정체성이 사라지면 "저사양"이 아니라 "다른 연출"이 된다. 설정 오버레이 문구도 실제 동작(4가지)을 그대로 적었다
+  3. **타이틀 스타일링: 붓글씨 폰트를 받지 않고 "붓글씨 감성"만 만든다** — 외부 에셋 금지(CLAUDE.md 3절)라 서예 폰트는 불가. Pretendard(CDN, 유일 예외) **900 weight + 자간 0.16em + 잉크→금박 세로 그라디언트 + drop-shadow 2단(발광 + 아래 그림자)** 조합으로 획 대비와 번짐을 만들었다. 로고 `<h1>`은 텍스트 노드 하나로 유지(E2E가 `toHaveText("장기 아레나")`로 검사 — 글자별 span 분해 금지)
+  4. **배경 문양은 전량 코드 생성 SVG** (`TraditionalPattern.tsx`): 팔괘(3획 비트마스크 → `<rect>`), 장기판 격자 9×10 + 궁성 X자, 구름(반원 스캘럽 + 아르키메데스 나선). 진영색을 좌(초 녹청)→우(한 적색) 그라디언트로 갈라 "마주 앉은 두 진영"이 배경으로 읽히게 했다. 중앙은 radial mask로 비워 로고·버튼 가독성을 지킨다
+  5. **팔괘 반지름 392 → 520** — 스크린샷 자가 평가 1차에서 r=392일 때 위·아래 괘가 로고 머리 장식과 하단 문구 위에 정확히 얹히고, 대각 괘가 로고 양옆에 "색색의 빗금"으로 보였다. 520으로 넓히면 위·아래 괘가 화면 밖으로 나가고 나머지 여섯만 좌우 여백에 남는다. 격자는 반대로 너무 옅어 보이지 않아 진하게(1.2px/0.85), 구름은 밝아서 옅게(1.8px/0.34) 조정
+  6. **결과 오버레이를 타이틀과 같은 문법으로 통일** — 머리 장식(선–한자 `對局終了`–선) + 승패 색 강조선 + 같은 버튼 스타일. 로컬·온라인이 같은 컴포넌트를 쓰므로 한 번의 변경으로 양쪽이 맞는다. **무승부 사유에 룰 근거 한 줄을 덧붙였다**(빅장 = 사이에 기물 없이 마주 봄 / 반복 = 동일 국면 3회) — `detail`은 사유 이름만 말해서 왜 무승부인지 모르는 사람에게 설명이 없었다
+  7. **타이틀의 "설정" 버튼을 실제로 연결** — P3에서 만든 설정 오버레이가 대국 화면에만 있어 타이틀 버튼이 `disabled`였다. 스토어에 이미 있는 `settingsOpen`을 타이틀에서도 렌더한다 (PRD 4절이 타이틀 버튼에 설정을 명시)
+  8. **Next `output: "standalone"`** — Docker 이미지가 pnpm과 workspace 심볼릭 링크 없이 뜨게 한다. tracing root는 루트 `pnpm-lock.yaml`에서 Next가 자동 추론(`outputFileTracingRoot` 수동 지정 불필요). 개발 서버·E2E는 영향 없음(빌드 산출물만 추가)
+  9. **Docker 빌드 컨텍스트는 모노레포 루트** — `engine`이 workspace 의존성이라 `apps/*`만으로는 빌드가 성립하지 않는다. 서버 이미지는 런타임 트리를 `--prod`로 새로 깔아 devDependencies(vitest/typescript/@types)를 떨구고 `engine/dist`만 빌드 스테이지에서 가져온다
+  10. **`NEXT_PUBLIC_SERVER_URL`은 build arg** — 빌드 시점에 번들로 굽히는 값이라 compose의 `environment:`로는 바꿀 수 없다. `build.args`로 넘기고, 포트를 바꾸면 `--build`가 필요하다는 사실을 compose 주석·README에 명시했다
+  11. **E2E 타이틀 스크린샷 전 `document.fonts.ready` 대기**(`waitForFonts`) — 없으면 Pretendard와 시스템 폴백 사이에서 스크린샷이 매번 달라진다. CDN 실패도 정상 해결되므로 테스트를 깨지 않는다
+- 검증: `pnpm -F engine test` **215 green** · `pnpm -F server test` **51 green** · `pnpm -F web build` 성공 · `pnpm -F web e2e` **26 green**(회귀 0) · `docker compose build` 두 이미지 성공 + `up -d` 후 `/health` 200·타이틀 HTML 200 확인 후 `down`
+- 타이틀 자가 평가: 2회 이터레이션 (1차 = 팔괘가 로고·문구와 충돌, 격자 안 보임, 구름 과함 → 2차에서 반지름·불투명도 조정 후 로고 완전 분리 확인)
+- 영향: `apps/web/app/{layout,page,globals.css}`, `src/components/game/{TitleScreen,TraditionalPattern(신설),ResultOverlay,SettingsOverlay,GameScreen}.tsx`, `src/components/board/vfx/{attackVariants.ts,CaptureFX.tsx,variants/bombard.tsx}`, `apps/web/next.config.ts`, `e2e/{helpers.ts,local-game.spec.ts}`, `README.md`(신설), `docker-compose.yml`·`apps/web/Dockerfile`·`apps/server/Dockerfile`·`.dockerignore`(신설)
+
+### [2026-08-03 07:20] P6 사운드 머지 사실 기록 (사운드 담당 에이전트 작업, 오케스트레이터 대리 기록)
+
+- Web Audio **합성** SFX 시스템이 별도 작업으로 구현되어 `e09c2f8` → `6e22a0d`(머지, 충돌 해소: E2E 브리지 양측 필드 유지)로 들어왔다. 외부 사운드 파일 0개 (CLAUDE.md 3절 준수)
+- 부착 방식이 설계의 핵심: 스토어·연출 상태머신을 한 줄도 수정하지 않고 ① `useGameStore.subscribe` 전/후 비교로 게임 이벤트 ② `stage`/`victoryStage` 런타임을 rAF로 읽어 연출 비트 ③ document 위임 리스너로 UI 버튼음을 잡는다
+- 커버리지: 선택·착수·비합법·한수쉼·장군·소환진·공격(7종 변주별)·타격·디졸브·외통 팡파레·UI hover/click. 음소거 토글은 설정 오버레이의 `사운드` 행
+- P6 마감에서 바꾼 것은 **부착 위치뿐**(위 1번). 합성 코드(`src/audio/*`)는 무수정

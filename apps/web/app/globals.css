@@ -3,6 +3,11 @@
 :root {
   --background: #0a0a0f;
   --foreground: #ededed;
+  /* Pretendard (CDN, CLAUDE.md 3절의 유일한 외부 리소스 예외). 로드 실패 시
+     시스템 한글 고딕으로 폴백한다 — 레이아웃은 어느 쪽이든 동일하다. */
+  --font-brand:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
 @theme inline {
@@ -18,8 +23,6 @@ body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo",
-    sans-serif;
+  font-family: var(--font-brand);
   overflow: hidden;
 }

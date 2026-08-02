@@ -23,7 +23,12 @@ const LAUNCH = 0.24;
  */
 const ARC_HEIGHT = 0.72;
 
-function BombardExtras({ plan, origin, target }: AttackExtrasProps) {
+function BombardExtras({
+  plan,
+  origin,
+  target,
+  lowSpec = false,
+}: AttackExtrasProps) {
   const theme = SIDE_THEME[plan.attacker.side];
   const span = T.impact - T.attack;
   const glow = getGlowTexture();
@@ -37,7 +42,8 @@ function BombardExtras({ plan, origin, target }: AttackExtrasProps) {
   ];
 
   const smoke: BurstSpec = {
-    count: 48,
+    // 저사양: 절반 (CaptureFX의 공통 이미터와 같은 계수)
+    count: lowSpec ? 24 : 48,
     origin: [target[0], 0.16, target[2]],
     t0: T.impact,
     life: 1.5,

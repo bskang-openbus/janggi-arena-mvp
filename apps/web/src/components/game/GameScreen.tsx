@@ -2,7 +2,6 @@
 
 import type { GameResult, Side } from "engine";
 import { useEffect } from "react";
-import { SfxDirector } from "@/src/audio/SfxDirector";
 import { JanggiScene } from "@/src/components/board/JanggiScene";
 import { SIDE_THEME } from "@/src/components/board/palette";
 import { matchResultLabel, resultLabel, SIDE_LABEL } from "@/src/game/adapters";
@@ -218,7 +217,7 @@ export function GameScreen() {
           testId="lowspec-button"
           onClick={() => updateSettings({ lowSpec: !lowSpec })}
           active={lowSpec}
-          title="후처리 효과를 끄고 가볍게 렌더합니다"
+          title="블룸·비네트 후처리 OFF + 파티클 절반 + 렌더 해상도 1x"
         >
           저사양
         </ControlButton>
@@ -269,10 +268,25 @@ export function GameScreen() {
         />
       )}
 
-      <SfxDirector />
+      {/* SfxDirector는 app/page.tsx 루트에 있다 (타이틀·로비 버튼음 포함) */}
       <E2EBridge />
     </main>
   );
+}
+
+/**
+ * 무승부 사유의 룰 근거 한 줄 (docs/RULES.md 4절). 결과 오버레이의 `detail`은
+ * "빅장 — 두 궁이 마주 봄"처럼 사유 자체만 말하므로, 왜 그게 무승부인지를
+ * 모르는 사람을 위해 규정을 덧붙인다.
+ */
+function drawNote(reason?: string): string | undefined {
+  if (reason === "facing") {
+    return "빅장 — 두 궁이 같은 세로줄에서 사이에 기물 없이 마주 보면 그 즉시 무승부입니다.";
+  }
+  if (reason === "repetition") {
+    return "같은 국면(배치 + 차례)이 3회 반복되면 무승부입니다.";
+  }
+  return undefined;
 }
 
 /**
@@ -300,13 +314,16 @@ function MatchResultOverlay({
     const { title, detail, outcome } = matchResultLabel(matchResult, mySide);
     const accent =
       outcome === "win" ? "#3ce9ca" : outcome === "lose" ? "#ff6a5a" : "#d9c9a5";
+    const draw = drawNote(
+      matchResult.type === "draw" ? matchResult.reason : undefined,
+    );
     return (
       <ResultOverlay
         title={title}
         detail={detail}
         accent={accent}
         outcome={outcome}
-        note="재대국하려면 방을 나간 뒤 새 방을 만들거나 방 코드로 입장하세요."
+        note={`${draw ? `${draw} ` : ""}재대국하려면 방을 나간 뒤 새 방을 만들거나 방 코드로 입장하세요.`}
         primary={{
           label: "방 나가기",
           testId: "result-leave-button",
@@ -324,6 +341,8 @@ function MatchResultOverlay({
       title={title}
       detail={detail}
       accent={accent}
+      outcome={result.type === "draw" ? "draw" : undefined}
+      note={drawNote(result.type === "draw" ? result.reason : undefined)}
       primary={{ label: "재대국", testId: "rematch-button", onClick: onRematch }}
       secondary={{
         label: "타이틀로",

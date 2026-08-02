@@ -2,7 +2,13 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 import captureGame from "./fixtures/capture-game.json";
 import mateGame from "./fixtures/mate-game.json";
-import { ARTIFACTS, playMoves, settleScene, startLocalGame } from "./helpers";
+import {
+  ARTIFACTS,
+  playMoves,
+  settleScene,
+  startLocalGame,
+  waitForFonts,
+} from "./helpers";
 
 /**
  * P2 gate — engine ⇄ 3D board integration driven from the UI.
@@ -17,6 +23,10 @@ test("타이틀 화면에서 로컬 대국을 시작한다", async ({ page }) =>
   await page.goto("/");
   await expect(page.getByTestId("title-screen")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("장기 아레나");
+  // P6 스타일링: Pretendard + 프로시저럴 전통 문양 SVG가 자리 잡은 뒤 촬영
+  await expect(page.getByTestId("title-pattern")).toBeVisible();
+  await waitForFonts(page);
+  await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(ARTIFACTS, "p2-title.png") });
 
   await page.getByTestId("start-local-button").click();

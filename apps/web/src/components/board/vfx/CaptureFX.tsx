@@ -476,6 +476,7 @@ export function CaptureFX({ plan, gore, lowSpec = false }: CaptureFXProps) {
           dir={geo.dir}
           origin={geo.staging}
           target={geo.to}
+          lowSpec={lowSpec}
         />
       )}
     </group>

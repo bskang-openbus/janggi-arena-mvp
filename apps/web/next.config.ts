@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /**
+   * Docker (P6). `standalone` emits `.next/standalone/**` with only the traced
+   * runtime deps, so the image doesn't need pnpm or the workspace symlinks.
+   * The tracing root is inferred from the repo-root `pnpm-lock.yaml`.
+   * `pnpm dev`/`pnpm -F web e2e` are unaffected — this only adds build output.
+   */
+  output: "standalone",
   // keeps the dev overlay badge out of E2E screenshots
   devIndicators: false,
   // `engine` ships raw TypeScript (package.json main -> ./src/index.ts),

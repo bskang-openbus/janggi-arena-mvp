@@ -36,6 +36,12 @@ export interface AttackExtrasProps {
   origin: readonly [number, number, number];
   /** world position of the victim */
   target: readonly [number, number, number];
+  /**
+   * 저사양 모드 (P6). 변주가 자체 파티클 이미터를 들고 있으면 개수를 절반
+   * 이하로 줄인다 — 지오메트리/셰이더 연출은 그대로 둔다 (연출의 정체성이
+   * 사라지면 "저사양"이 아니라 "다른 연출"이 되기 때문).
+   */
+  lowSpec?: boolean;
 }
 
 export interface AttackVariant {

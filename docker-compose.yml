@@ -1,0 +1,57 @@
+# Janggi Arena — web(3002) + server(3001)
+#
+#   docker compose build     # 두 이미지 빌드 (P6 게이트)
+#   docker compose up -d     # 실행 → http://localhost:3002
+#
+# 포트는 CLAUDE.md 규칙(API = 프론트 − 1)을 따른다. 호스트 포트가 이미 쓰이는
+# 중이라면 WEB_PORT / SERVER_PORT 로 바꿔 띄운다:
+#   WEB_PORT=4002 SERVER_PORT=4001 docker compose up -d --build
+#
+# 주의: 웹은 서버 주소를 **빌드 시점에** 번들로 굽는다(NEXT_PUBLIC_*). 그래서
+# SERVER_PORT 를 바꾸면 web 이미지도 반드시 다시 빌드해야 한다 (`--build`).
+# 로컬 2인 대국은 server 없이도 100% 동작한다 (CLAUDE.md 절대 규칙 7).
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    image: janggi-arena/server:dev
+    environment:
+      PORT: 3001
+      HOST: 0.0.0.0
+      # socket.io CORS — 웹 오리진만 허용 (미지정 시 요청 오리진 반사)
+      CORS_ORIGIN: http://localhost:${WEB_PORT:-3002}
+      TURN_TIMEOUT_MS: ${TURN_TIMEOUT_MS:-60000}
+      AUTO_PASS_LIMIT: ${AUTO_PASS_LIMIT:-2}
+    ports:
+      - "${SERVER_PORT:-3001}:3001"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # 브라우저가 접속하는 주소이므로 컨테이너 이름이 아니라 호스트 주소다
+        NEXT_PUBLIC_SERVER_URL: http://localhost:${SERVER_PORT:-3001}
+    image: janggi-arena/web:dev
+    environment:
+      PORT: 3002
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${WEB_PORT:-3002}:3002"
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
