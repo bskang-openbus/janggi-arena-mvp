@@ -17,6 +17,7 @@ import { Vector3 } from "three";
 import { getAttackVariant } from "./attackVariants";
 import {
   type CinematicPlan,
+  cinematicClock,
   clamp01,
   duelGeometry,
   type DuelGeometry,
@@ -148,7 +149,13 @@ export function CinematicDirector({
       const g = shot.current;
       const variant = getAttackVariant(plan.variant);
 
-      stage.raw += dt;
+      // `cinematicClock` is inert unless a test has taken the wheel
+      if (cinematicClock.seek !== null) {
+        stage.raw = cinematicClock.seek;
+        cinematicClock.seek = null;
+      } else if (!cinematicClock.manual) {
+        stage.raw += dt;
+      }
       const t = stageTime(stage.raw);
       stage.t = t;
       stage.frozen = stage.raw > T.impact && stage.raw < T.impact + 0.1;

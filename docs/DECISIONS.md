@@ -140,3 +140,17 @@
   - `playMoves`에 `cinematics: "skip" | "watch"` 옵션 추가, 기본 "skip". 기존 기보 재생 테스트는 매 수 뒤 `skipCinematic()`(= 사용자가 탭하는 것과 동일한 액션)을 호출하고 위상이 idle인지까지 확인한다. 연출 자체를 검증하는 신규 4개 테스트만 실제로 재생
   - 스크린샷 지연 보정: SwiftShader에서 캔버스 스크린샷이 ~0.3초 걸리므로 목표 비트보다 **먼저** 셔터를 연다(타격 프레임은 t=1.02에서 요청). 캡처 후 `cinematicT`를 다시 읽어 1.02~2.3 구간 안이었음을 어서션
 - 영향: `apps/web/e2e/helpers.ts`, `apps/web/e2e/capture-cinematic.spec.ts`, `src/components/game/E2EBridge.tsx`, `src/components/board/JanggiScene.tsx`
+
+### [2026-08-03 05:05] P3-fix — 연출 E2E의 실시간 레이스 제거 (결정적 클록)
+- 배경: 감사에서 `capture-cinematic.spec.ts`의 "디졸브 소멸 구간" 테스트가 **전체 스위트 실행에서만** 간헐 실패(2회 연속 재현)했다. 단독 실행은 항상 통과
+- 원인: 연출이 실시간(rAF delta)으로 흐르는데 테스트는 `waitForFunction`으로 `cinematicT`가 목표치에 닿기를 기다렸다. SwiftShader + 스위트 부하에서는 `play(포획수)` 호출과 첫 폴링 사이에 실제 2.9초가 다 지나가 연출이 idle로 복귀 → `cinematicT`가 0으로 돌아가 목표치에 **영영 도달하지 않고** 10초 타임아웃. 스크린샷 지연을 앞당겨 보정하던 기존 방식(`advanceTo(1.02)` 후 캡처)도 같은 레이스를 안고 있었다
+- 결정: **연출 클록을 테스트가 직접 잡는다.**
+  - `board/vfx/stage.ts`에 `cinematicClock = { manual, seek }` 추가. 디렉터는 프레임마다 `seek`가 있으면 `stage.raw`를 그 값으로 스냅하고, `manual`이면 스스로 시간을 흘리지 않는다 (3줄)
+  - **유일한 writer는 `E2EBridge`** (프로덕션 번들 미포함). 기본값이 곧 "실시간 진행"이라 프로덕션 동작은 한 글자도 바뀌지 않는다. 브리지 언마운트 시 `resetCinematicClock()`
+  - 브리지 API: `pauseCinematic()` / `resumeCinematic()` / `seekCinematic(t)`. `t`는 히트스톱 보정된 연출 시각이고 `rawForStageTime()`이 `stageTime()`의 역함수로 wall-clock 값을 만든다
+  - 헬퍼 3종 신설: `playCapturePaused(page, move)`(포획 **전에** 클록을 잡는다 — 이게 핵심), `seekCinematic(page, t)`, `resumeAndFinish(page)`
+- 이게 성립하는 이유: 이 연출의 모든 값이 `stage.t`의 **순수 함수**다. 파티클은 해석해로 적분하고(프레임 누적 없음), 카메라·암전·플래시·디졸브는 전부 t의 곡선이다. 따라서 t로 점프한 프레임 = 그 시각에 실시간으로 도달했을 프레임과 동일하다. (P4에서 attackVariant를 추가할 때도 이 성질을 깨지 말 것 — `offset`/`awaken`은 t만 받는다)
+- 부수 효과: 스크린샷이 원하는 비트에 **정확히** 꽂힌다. 지연 보정용으로 1.02s에 셔터를 열어 1.3~1.7s 어딘가를 찍던 것을 타격 `t=1.26`, 소멸 `t=1.85`로 고정했고, 혈흔 ON/OFF 스크린샷도 같은 시각이라 직접 비교가 된다. `data-beat` 어서션도 확정값(`impact`/`dissolve`/`sigil`)으로 강화
+- 예외: 바닥 혈흔 데칼의 페이드인만 자체 delta 시계를 쓴다(연출과 독립적으로 살아남아야 하므로). 연출 시간이 멈춘 상태에서 600ms 대기해 포화시키므로 단조 증가라 플레이키하지 않다
+- 검증: `pnpm -F web e2e` 전체 스위트 **연속 3회 16/16 green**
+- 영향: `apps/web/src/components/board/vfx/{stage.ts,CinematicDirector.tsx}`, `src/components/game/E2EBridge.tsx`, `e2e/{helpers.ts,capture-cinematic.spec.ts}`

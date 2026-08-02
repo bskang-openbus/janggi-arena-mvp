@@ -45,6 +45,43 @@ export function stageTime(raw: number): number {
   return raw - HITSTOP;
 }
 
+/** Inverse of `stageTime` — the wall-clock reading that yields cinematic `t`. */
+export function rawForStageTime(t: number): number {
+  return t <= T.impact ? t : t + HITSTOP;
+}
+
+/* ------------------------------------------------------------------ */
+/* Deterministic clock (TEST ONLY)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Lets a test drive the timeline instead of the wall clock.
+ *
+ * Every value in this module is a pure function of `stage.t` (particles
+ * integrate analytically, the camera and the dissolve are curves), so seeking
+ * straight to a beat renders exactly the frame that beat would have produced.
+ *
+ * The **only** writer is `E2EBridge`, which is not mounted in production
+ * builds; the director just reads these two fields. Without a writer the
+ * defaults below mean "advance with real time", i.e. normal play.
+ *
+ * Why it exists: a Playwright round-trip is far slower than the 2.9s
+ * timeline. Under full-suite load the cinematic could finish *before* the
+ * test's first poll, so waiting for `t` to reach a value raced against real
+ * time and timed out intermittently.
+ */
+export const cinematicClock = {
+  /** true → the director stops advancing `stage.raw` on its own */
+  manual: false,
+  /** one-shot: snap `stage.raw` to this wall-clock value on the next frame */
+  seek: null as number | null,
+};
+
+export function resetCinematicClock(): void {
+  cinematicClock.manual = false;
+  cinematicClock.seek = null;
+}
+
 /** How far in front of the victim the attacker stages before it strikes. */
 export const STAGE_GAP = 1.15;
 /**

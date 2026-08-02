@@ -2,7 +2,12 @@
 
 import { parseNotation, toNotation } from "engine";
 import { useEffect } from "react";
-import { stage } from "@/src/components/board/vfx/stage";
+import {
+  cinematicClock,
+  rawForStageTime,
+  resetCinematicClock,
+  stage,
+} from "@/src/components/board/vfx/stage";
 import { pieceAtSquare } from "@/src/game/adapters";
 import { useGameStore } from "@/src/game/store";
 
@@ -31,6 +36,16 @@ export interface JanggiTestApi {
   pass: () => void;
   /** 연출 스킵 — same action a tap on the cinematic overlay dispatches */
   skipCinematic: () => void;
+  /**
+   * Hand the cinematic clock to the test. Call *before* the capturing move:
+   * the timeline then stays at t=0 until `seekCinematic` moves it, which
+   * removes the race between a Playwright round-trip and the 2.9s timeline.
+   */
+  pauseCinematic: () => void;
+  /** Give the clock back to real time (the timeline resumes from where it is). */
+  resumeCinematic: () => void;
+  /** Jump the timeline to cinematic second `t` (hitstop-adjusted). */
+  seekCinematic: (t: number) => void;
   snapshot: () => {
     turn: string;
     result: string | null;
@@ -98,6 +113,16 @@ export function E2EBridge() {
       skipCinematic: () => {
         useGameStore.getState().skipCinematic();
       },
+      pauseCinematic: () => {
+        cinematicClock.manual = true;
+      },
+      resumeCinematic: () => {
+        cinematicClock.manual = false;
+        cinematicClock.seek = null;
+      },
+      seekCinematic: (t) => {
+        cinematicClock.seek = rawForStageTime(t);
+      },
       sampleFrame: () => {
         const canvas = document.querySelector("canvas");
         if (!canvas) return null;
@@ -150,6 +175,7 @@ export function E2EBridge() {
 
     window.__janggi = api;
     return () => {
+      resetCinematicClock();
       delete window.__janggi;
     };
   }, []);

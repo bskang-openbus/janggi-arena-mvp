@@ -28,6 +28,44 @@ export async function waitCinematicIdle(page: Page) {
   );
 }
 
+/**
+ * Drive the cinematic to exactly `t` and wait for the frame that renders it.
+ *
+ * Requires `pauseCinematic()` to have been armed *before* the capturing move.
+ * Without that the timeline runs on the wall clock, which under full-suite
+ * load can finish before Playwright's first poll — the frame you asked for
+ * would then never come back.
+ */
+export async function seekCinematic(page: Page, t: number) {
+  await page.evaluate((target) => window.__janggi!.seekCinematic(target), t);
+  await page.waitForFunction(
+    (target) => window.__janggi!.snapshot().cinematicT >= target - 1e-4,
+    t,
+    { timeout: 10_000 },
+  );
+}
+
+/** Arm the deterministic clock, then play `move` (which must be a capture). */
+export async function playCapturePaused(
+  page: Page,
+  move: { from: string; to: string },
+) {
+  await page.evaluate(() => window.__janggi!.pauseCinematic());
+  await page.evaluate((m) => window.__janggi!.play(m.from, m.to), move);
+  const snapshot = await page.evaluate(() => window.__janggi!.snapshot());
+  expect(
+    snapshot.cinematic,
+    `${move.from}→${move.to} did not start a capture cinematic`,
+  ).toBe("cinematic");
+  return snapshot;
+}
+
+/** Give the clock back to real time and let the timeline finish. */
+export async function resumeAndFinish(page: Page) {
+  await page.evaluate(() => window.__janggi!.resumeCinematic());
+  await waitCinematicIdle(page);
+}
+
 export interface PlayOptions {
   /**
    * What to do when a move triggers the P3 capture cinematic:
