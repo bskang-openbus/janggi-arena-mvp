@@ -189,3 +189,17 @@
   - 승리 문구의 `clip-path: inset()`이 텍스트 글로우를 사각형으로 잘라냈다 → 완전히 드러난 뒤에는 `none`
 - 게이트: `pnpm -F web e2e` **19개 green**(기존 16 + 신규 3), engine 215 green 회귀 없음
 - 영향: `apps/web/src/components/board/vfx/{fx.tsx,variants/*,victory.ts,VictoryDirector.tsx,attackVariants.ts,CinematicDirector.tsx}`, `src/components/game/{VictoryOverlay,GameScreen,E2EBridge}.tsx`, `src/game/store.ts`, `apps/web/scripts/generate-p4-fixtures.ts`, `e2e/{tier2-attacks.spec.ts,helpers.ts,fixtures/p4-*.json}`
+
+### [2026-08-03 06:15] P5 서버 — 설계 결정 (server-p5 에이전트, 오케스트레이터 대리 기록)
+- 배경: TASKS.md P5가 정하지 않은 세부 (타이머 엣지, 이탈 처리, engine 소비 방식)
+- 결정:
+  1. 장군 상태에서 턴 시간 초과 → 한수쉼 불가 규칙에 따라 즉시 패배 (result.type "timeout", 자동 패스 카운트 미증가)
+  2. 자동 패스 2회째는 판 적용 후 forfeit 우선 (그 패스로 생긴 무승부보다 패배 판정 우선)
+  3. 대국 중 room:leave = 기권, 연결 끊김 = 알림만 (시계 계속 → 자동 패스 자연 패배). 소켓 0명 시 방·타이머 폐기 (재접속 복구는 PRD 제외 항목)
+  4. 방장=초, 참가자=한. 방 코드 = 혼동 문자 제외 31자 알파벳 6자리 (crypto 난수)
+  5. engine 소비: engine에 build 스크립트 + "./dist" 서브패스 export만 추가 (루트 export 불변 → web transpilePackages 경로 무영향). 서버 런타임은 dist ESM, 테스트는 vitest alias로 소스 직접
+  6. NestJS는 ESM + tsc 빌드, @nestjs/cli 미도입. vitest esbuild가 emitDecoratorMetadata 미지원이라 DI는 명시적 @Inject 토큰
+  7. 포트 PORT 기본 3001 (웹 3002-1 규칙), HOST/TURN_TIMEOUT_MS/AUTO_PASS_LIMIT/CORS_ORIGIN 전부 env
+  8. 이벤트 프로토콜은 apps/server/PROTOCOL.md 가 단일 기준 (C→S 7종 ack, S→C 5종, 에러 코드 13종)
+- 사유: 규칙 공백은 RULES.md 일관성(장군 중 패스 불가) 기준으로 해석. 기존 게이트 무회귀를 구조적으로 보장
+- 영향: apps/server/* 신설, packages/engine/package.json(build·exports)·tsconfig.build.json

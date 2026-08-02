@@ -19,7 +19,17 @@ export default defineConfig({
    * buys a real signal when red.
    */
   timeout: 120_000,
-  expect: { timeout: 15_000 },
+  /**
+   * Assertion budget, deliberately generous for the same reason as `timeout`.
+   *
+   * At 15s this fired spuriously on `startLocalGame` — the very first
+   * `toBeVisible` after a cold `page.goto` against the Next dev server, on a
+   * machine that happened to be running twenty other dev servers. The test had
+   * 120s left, but the assertion gave up after 15s and failed the run.
+   * Splitting the two budgets that far apart meant a single slow navigation
+   * could fail a test that was nowhere near its own limit.
+   */
+  expect: { timeout: 30_000 },
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   use: {
     baseURL: BASE_URL,

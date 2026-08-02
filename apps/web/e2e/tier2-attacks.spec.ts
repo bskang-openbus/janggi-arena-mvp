@@ -29,7 +29,7 @@ import {
  * converge just short of it. `shotAt` is therefore per variant — the second at
  * which that attack looks like nothing else on the list.
  *
- * Artifacts: artifacts/p4-<기물>.png ×7 + p4-victory.png
+ * Artifacts: artifacts/p4-<기물>.png ×7 + p4-mate.png (외통 승리 연출)
  */
 
 interface Tier2Case {
@@ -181,7 +181,7 @@ test("외통 승리 연출이 문양·붓글씨·승자를 거쳐 결과 화면�
   );
   await expect(page.getByTestId("victory-word")).toHaveText("외통");
   await expect(page.getByTestId("victory-winner")).toHaveText("초 승");
-  await page.screenshot({ path: path.join(ARTIFACTS, "p4-victory.png") });
+  await page.screenshot({ path: path.join(ARTIFACTS, "p4-mate.png") });
 
   const frame = await page.evaluate(() => window.__janggi!.sampleFrame());
   expect(frame!.mean).toBeGreaterThan(2);
