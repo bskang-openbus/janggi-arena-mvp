@@ -75,3 +75,9 @@
   - 재현성을 위해 `Math.random` 대신 LCG 시드 사용
   - 두 기보 모두 `src/fixtures.test.ts`가 매 테스트 실행마다 전 수 합법성·기대 결과를 재검증
 - 영향: `packages/engine/scripts/*`, `apps/web/e2e/fixtures/*.json`, `packages/engine/src/fixtures.test.ts`, `packages/engine/package.json`(scripts 2개), `packages/engine/tsconfig.json`(include에 scripts 추가)
+
+### [2026-08-03 03:25] P2 시각 레이어 — 렌더링 세부 결정 (board-visual 에이전트, 오케스트레이터 대리 기록)
+- 배경: PRD 5절이 정하지 않은 3D 세부(좌표계, 색상값, 각인 방식, 카메라)
+- 결정: 월드 좌표 x=file-4, z=-(rank-4.5), 교차점 간격 1유닛, 초=+Z(화면 아래). 초 body #1c6155/accent #3ce9ca, 한 #7d2420/#ff6152 (PRD 지정색은 emissive 유지). 한자 각인은 실린더 캡 UV 회전 문제 회피 위해 상향 평면+투명 RGBA 텍스처(map+emissiveMap). 카메라 고도 54° 부감, fov38, 각도·줌 제한, 팬 금지. 나무결은 value-noise+fbm 워프 캔버스 텍스처. E2E 포트는 WEB_PORT 환경변수 오버라이드(기본 3002). next devIndicators=false (스크린샷 오염 방지)
+- 사유: 스크린샷 자가 평가 3회 이터레이션으로 프레이밍·질감·가독성 확정
+- 영향: apps/web/src/components/board/*, apps/web/app/page.tsx, playwright.config.ts, next.config.ts
