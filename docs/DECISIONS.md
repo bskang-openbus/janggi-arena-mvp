@@ -49,3 +49,29 @@
 - 결정: 엔진 무의존 프레젠테이션 컴포넌트를 격리 워크트리 브랜치에서 병행 개발, P1 게이트 통과 후에만 main 머지
 - 사유: 게이트 규칙("P1 미통과 시 P2 진입 금지")은 main 기준으로 준수하면서 벽시계 시간 단축. 두 에이전트가 같은 워킹트리에서 git add -A 충돌하는 것 방지
 - 영향: board-visual 에이전트 브랜치, P2 통합 시 머지
+
+### [2026-08-03 03:30] P1 엔진 — 룰 해석 및 API 세부 결정
+- 배경: RULES.md 5절 테스트 벡터 일부가 3절 본문 규칙과 수치·좌표가 어긋나거나 모호했고, ENGINE_API.md가 정하지 않은 세부(판정 우선순위, perft 정의 등)를 확정해야 했다
+- 결정 및 사유:
+  1. **V01 "16곳" → 실제 14곳**: 차 e5, 빈 보드, 궁 e2(초)·e9(한) 포함 기준. 5랭크 8곳 + 아래 e4·e3(e2는 아군 궁이 차단) + 위 e6~e9(e9는 적 궁 포획으로 정지) = 14. 명세의 16은 궁 2개를 계산에 넣지 않은 수치로 판단. RULES.md 5절 서두("궁은 양측 항상 포함")를 따라 14로 확정
+  2. **적 궁 포획 수는 생성한다**: "아군=차단 / 적=포획 가능" 원칙을 예외 없이 적용. 실전에서는 외통 판정으로 그 국면에 도달하지 않으므로 부작용 없음. 인위적 국면(테스트)에서는 e9 포획이 합법 수로 나온다
+  3. **V14 좌표 정정**: "상 e5, f6 기물 → g8·h7 불가"는 RULES.md 3.4(도착점 (±2,±3)) 기하와 모순. e5 상의 경로는 g8={e6,f7}, h7={f5,g6}이며 f6은 어느 경로에도 없다. 따라서 f6은 아무것도 막지 않고(V14b로 명시 테스트), 멱2 차단은 f7(→g8만 불가)로 검증. V15도 같은 이유로 "d8·f8"을 실제 도착점 "c8·g8"로 정정
+  4. **V25 정정**: 초 사 e3은 e3에 대각선이 없고 e4는 궁성 밖이므로, 핀 상태에서 합법 수가 0개다(옆으로 못 갈 뿐 아니라 아예 못 움직인다). 테스트를 그에 맞게 강화
+  5. **빅장은 장군이 아니다**: 두 궁은 서로를 공격하지 않는 것으로 구현(궁은 궁성 내 선만 이동하므로 자연 귀결). 빅장을 만드는 수는 합법이고 즉시 draw/facing (RULES.md 4절 MVP 단순화 규정 준수)
+  6. **판정 우선순위 = 외통 > 빅장 > 3회 반복** (ENGINE_API.md "판정 의무" 1·2·3 순서 그대로)
+  7. **반복 국면 동일성 = 배치 + 차례**. 기물 id는 무관. pass도 국면을 만들므로 반복 카운트에 포함(4연속 pass면 무승부)
+  8. **perft 정의**: `allLegalActions` 기준(한수쉼 포함) 정확히 depth 플라이의 수순 개수. 초기 국면 **depth1 = 32(수 31 + pass 1), depth2 = 1024**. 수만 세면 depth1 = 31
+  9. **GameState에 `positionCounts` 필드 추가**: 반복 판정을 순수 함수로 유지하기 위한 최소 이력. ENGINE_API.md가 "판정에 필요한 최소 이력(구현 자유)"으로 위임한 범위 내. 계약된 필드·함수 시그니처는 전부 그대로 구현
+  10. **계약 외 추가 export(가산적, 파괴적 변경 없음)**: `isCheckmate`, `isFacing`, `positionKey`, `stateFrom`, `boardFrom`, `initialBoard`, `pieceAt`, `findGeneral`, `inPalaceOf`, `isPalaceDiagonalPoint`, `palaceDiagonalNeighbors`, `opponent` 등 P2가 3D 보드를 그릴 때 필요할 유틸
+  11. **`legalMovesFrom`은 (a) 게임 종료 상태 (b) 상대 기물·빈 칸에 대해 빈 배열 반환** — P2 UI가 별도 방어 코드 없이 클릭 핸들러에 그대로 쓰도록
+- 영향: `packages/engine/src/{types,board,movegen,game,index}.ts`, 테스트 11개 파일 103개
+
+### [2026-08-03 03:30] P1 — E2E 기보 픽스처 생성 방식
+- 배경: Playwright가 재생할 기보 2종을 "엔진으로 생성·검증"해야 하는데, 엔진이 순수 TS(런타임 의존성 0)라 Node에서 바로 실행할 러너가 없었다
+- 결정:
+  - `packages/engine/scripts/ts-resolve.mjs` — Node 24 내장 타입 스트리핑 + `module.registerHooks`로 `./x.js` → `./x.ts` 만 재매핑하는 15줄짜리 훅. 의존성 0. `pnpm -F engine fixtures`, `pnpm -F engine perft`로 실행
+  - `capture-game.json`: 손으로 설계 후 엔진 전수 검증한 7수 기보. 0~5수는 무포획, **6번째(0-index) 수 a1→a7에서 초 차가 한 병 포획**
+  - `mate-game.json`: 협조 탐색(helpmate) — 초는 한의 합법 수를 최소화하는 수, 한은 자기 합법 수를 최소화하는 수를 고르고 무승부 수는 배제. 시드 1~60 중 최단 결과 채택 → **seed 12, 9수, 초 승 외통**. 마지막 수 e4→g7(상)이 포 e3의 열린 장군과 상의 직접 장군을 동시에 거는 양수겸장이라 벗어날 수 없음
+  - 재현성을 위해 `Math.random` 대신 LCG 시드 사용
+  - 두 기보 모두 `src/fixtures.test.ts`가 매 테스트 실행마다 전 수 합법성·기대 결과를 재검증
+- 영향: `packages/engine/scripts/*`, `apps/web/e2e/fixtures/*.json`, `packages/engine/src/fixtures.test.ts`, `packages/engine/package.json`(scripts 2개), `packages/engine/tsconfig.json`(include에 scripts 추가)

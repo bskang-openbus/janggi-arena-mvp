@@ -1,0 +1,37 @@
+{
+  "description": "초 차(a1)가 7수째에 한 병(a7)을 포획하는 합법 기보 — 포획 연출 E2E용 (docs/RULES.md 6절)",
+  "moves": [
+    {
+      "from": "a4",
+      "to": "b4"
+    },
+    {
+      "from": "i7",
+      "to": "h7"
+    },
+    {
+      "from": "e4",
+      "to": "e5"
+    },
+    {
+      "from": "e7",
+      "to": "e6"
+    },
+    {
+      "from": "g4",
+      "to": "f4"
+    },
+    {
+      "from": "c7",
+      "to": "b7"
+    },
+    {
+      "from": "a1",
+      "to": "a7"
+    }
+  ],
+  "expect": {
+    "captureAt": 6,
+    "capturedType": "soldier"
+  }
+}

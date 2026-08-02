@@ -12,7 +12,9 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "perft": "node --import ./scripts/ts-resolve.mjs scripts/perft.ts",
+    "fixtures": "node --import ./scripts/ts-resolve.mjs scripts/generate-fixtures.ts"
   },
   "devDependencies": {
     "typescript": "5.9.3",
