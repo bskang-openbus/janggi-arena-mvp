@@ -1,0 +1,15 @@
+{
+  "//": "Emit-only config for consumers that cannot compile raw TS (apps/server). The web app keeps consuming ./src via Next transpilePackages.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/test-helpers.ts", "scripts"]
+}
