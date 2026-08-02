@@ -81,3 +81,29 @@
 - 결정: 월드 좌표 x=file-4, z=-(rank-4.5), 교차점 간격 1유닛, 초=+Z(화면 아래). 초 body #1c6155/accent #3ce9ca, 한 #7d2420/#ff6152 (PRD 지정색은 emissive 유지). 한자 각인은 실린더 캡 UV 회전 문제 회피 위해 상향 평면+투명 RGBA 텍스처(map+emissiveMap). 카메라 고도 54° 부감, fov38, 각도·줌 제한, 팬 금지. 나무결은 value-noise+fbm 워프 캔버스 텍스처. E2E 포트는 WEB_PORT 환경변수 오버라이드(기본 3002). next devIndicators=false (스크린샷 오염 방지)
 - 사유: 스크린샷 자가 평가 3회 이터레이션으로 프레이밍·질감·가독성 확정
 - 영향: apps/web/src/components/board/*, apps/web/app/page.tsx, playwright.config.ts, next.config.ts
+
+### [2026-08-03 03:50] P2 통합 — 엔진 ↔ 3D 보드 연결 구조
+- 배경: 시각 레이어(`apps/web/src/components/board/*`)는 엔진 무의존 계약으로 완성되어 있었고, 데모 페이지가 스텁 데이터로 렌더 중이었다. 여기에 룰 엔진을 붙여 로컬 2인 대국을 완성해야 했다
+- 결정 및 사유:
+  1. **어댑터 레이어 신설 (`src/game/adapters.ts`)** — `board/types.ts`는 손대지 않는다. 엔진의 `Board`(=`board[rank][file]`)를 시각 레이어가 원하는 `PieceView[]`(flat, file/rank 포함)로 변환하고, 기물 id → 좌표 역인덱스, 잡힌 말 그룹핑, 마지막 수 문구, 결과 문구를 전부 여기서 만든다. 한자 글리프는 `board/palette.ts`의 `glyphFor`를 재사용해 UI와 3D 각인이 절대 어긋나지 않게 했다
+  2. **zustand 스토어 = 엔진 단일 진실원 (`src/game/store.ts`)** — 모든 변경은 `applyAction`을 통과한다. 파생 상태(pieces/lastMove/checkSide/잡힌 말/canPass/마지막 수 문구)는 셀렉터가 아니라 **전이 시점에 1회 계산해 스토어에 물질화**했다. 셀렉터에서 매번 새 배열을 만들면 zustand v5에서 렌더 루프를 유발하기 때문
+  3. **`lastCapture` 이벤트를 스토어에 래치** — `{seq(=history index), captured, captor, captorPieceId, at}`. P3 포획 연출 상태머신이 `seq` 증가만 구독하면 되도록 지금은 저장만 한다. seq는 단조 증가하므로 같은 종류의 포획이 연속돼도 트리거를 놓치지 않는다
+  4. **적 기물 클릭 = 포획 경로** — `PieceMesh`가 `e.stopPropagation()`을 하므로 하이라이트된 칸 위의 적 기물을 클릭하면 `onSquareClick`이 아니라 `onPieceClick`이 발화한다. `selectPiece`가 "선택 중 + 그 칸이 합법 도착점"이면 `clickSquare`로 위임하도록 처리
+  5. **`checkSide`는 외통 후에도 유지** — 결과 오버레이 뒤에서 패배 측 궁이 계속 붉게 맥동하도록. 경고 배너만 `result === null`로 게이팅
+  6. **타이틀 ↔ 대국은 라우트가 아닌 스토어 전환** — WebGL 컨텍스트와 프로시저럴 텍스처 캐시를 재생성하지 않기 위해. 단일 라우트 유지
+  7. **잡힌 말 목록은 "각 진영이 잡은 말(전과)"** — `history`의 `captured`에서 파생하므로 보드와 절대 어긋날 수 없다. 좌=초 전과, 우=한 전과, 글리프+개수 그룹핑
+- 영향: `apps/web/src/game/*`, `apps/web/src/components/game/*`, `apps/web/app/page.tsx`, `apps/web/src/demo/stubBoard.ts`(삭제)
+
+### [2026-08-03 03:50] P2 통합 — 빌드 구성(engine 워크스페이스 의존) 및 dev 번들러 변경
+- 배경: `engine`은 빌드 산출물 없이 원본 TS를 `exports: {".": "./src/index.ts"}`로 노출하고, 내부 import는 NodeNext 관례대로 `./game.js`처럼 `.js` 확장자를 쓴다
+- 결정:
+  - `apps/web/package.json`에 `"engine": "workspace:*"` 추가(모노레포 내부 패키지 — 4절 허용 목록 위반 아님), `next.config.ts`에 `transpilePackages: ["engine"]`
+  - webpack `resolve.extensionAlias`에 `".js" → [".ts",".tsx",".js"]` 추가 (이게 없으면 `Module not found: ./game.js`)
+  - **dev 스크립트에서 `--turbopack` 제거** — Turbopack은 `extensionAlias` 상당 옵션이 없어 워크스페이스 TS 패키지의 `.js` 확장자 import를 해결하지 못했다(dev 500). 대안(엔진 소스 수정/빌드 산출물 추가)은 "packages/engine 수정 금지" 제약에 걸리므로 웹팩 dev를 택했다. `next build`는 원래 웹팩이라 영향 없음. Ready in ~0.9s로 체감 손실 없음
+- 영향: `apps/web/package.json`, `apps/web/next.config.ts`, `pnpm-lock.yaml`
+
+### [2026-08-03 03:50] P2 통합 — E2E 입력 브리지
+- 배경: 3D 교차점을 Playwright에서 클릭하려면 테스트가 카메라 투영을 재계산해야 해서 취약하다
+- 결정: `src/components/game/E2EBridge.tsx`가 `window.__janggi`에 `clickPiece/clickSquare/play/playAll/pass/snapshot`을 노출한다. **자체 게임 로직 없이 스토어 액션을 그대로 호출**하므로 검증 대상 로직은 프로덕션과 100% 동일하다. `play(from,to)`는 실제 보드처럼 도착점에 기물이 있으면 `clickPiece`(PieceMesh 경로), 없으면 `clickSquare`(픽 평면 경로)로 라우팅한다. 마운트 조건 = `NODE_ENV !== 'production' || NEXT_PUBLIC_E2E === '1'` → 프로덕션 번들에는 포함되지 않는다. 턴 표시·장군 배너·잡힌 말·결과 오버레이 등 화면 검증은 전부 실제 DOM 어서션으로 수행
+- 사유: 3D 픽 좌표 계산을 테스트에 복제하는 것보다 회귀 신뢰도가 높고, 프로덕션 로직과 분리 유지 조건도 만족
+- 영향: `apps/web/src/components/game/E2EBridge.tsx`, `apps/web/e2e/{helpers.ts,local-game.spec.ts,visual-board.spec.ts,canvas.spec.ts}`

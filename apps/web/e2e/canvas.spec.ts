@@ -1,21 +1,11 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { ARTIFACTS, settleScene, startLocalGame } from "./helpers";
 
-// P0 gate: the home page must render an R3F canvas. This is a placeholder
-// scene — real board/piece rendering + input lands in P2.
-test("home page renders an R3F canvas and captures a screenshot", async ({
-  page,
-}) => {
-  await page.goto("/");
-
-  const canvas = page.locator("canvas");
-  await expect(canvas).toBeVisible();
-
-  // give the WebGL context a moment to paint the first frame
-  await page.waitForTimeout(300);
-
-  const artifactsDir = path.resolve(__dirname, "../../../artifacts");
-  await page.screenshot({
-    path: path.join(artifactsDir, "p0-canvas.png"),
-  });
+// P0 gate, kept alive through the P2 flow: 타이틀 → 로컬 대국 → R3F 캔버스.
+test("로컬 대국 화면이 R3F 캔버스를 렌더한다", async ({ page }) => {
+  await startLocalGame(page);
+  await expect(page.locator("canvas")).toBeVisible();
+  await settleScene(page, 400);
+  await page.screenshot({ path: path.join(ARTIFACTS, "p0-canvas.png") });
 });
