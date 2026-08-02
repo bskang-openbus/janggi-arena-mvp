@@ -1,0 +1,29 @@
+{
+  "description": "초 졸이 자리를 비우고 초 상(c1)이 두 번 건너뛰어 한 병(c7)을 포획 — 진각 내려찍기",
+  "moves": [
+    {
+      "from": "e4",
+      "to": "d4"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "c1",
+      "to": "e4"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "e4",
+      "to": "c7"
+    }
+  ],
+  "expect": {
+    "captureAt": 4,
+    "capturedType": "soldier",
+    "captorType": "elephant",
+    "captorSide": "cho"
+  }
+}

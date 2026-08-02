@@ -3,9 +3,16 @@ import { expect, type Page } from "@playwright/test";
 
 export const ARTIFACTS = path.resolve(__dirname, "../../../artifacts");
 
+/**
+ * A fixture ply. 한수쉼 is a legal action, and the P4 fixtures lean on it: 사와
+ * 궁은 궁성을 벗어날 수 없으므로 상대가 쉬는 동안 적 병이 궁성까지 걸어
+ * 들어와야만 포획이 성립한다 (scripts/generate-p4-fixtures.ts).
+ */
+export type Step = { from: string; to: string } | { pass: true };
+
 export interface Fixture {
   description: string;
-  moves: { from: string; to: string }[];
+  moves: Step[];
   expect: Record<string, unknown>;
 }
 
@@ -100,7 +107,7 @@ export interface PlayOptions {
  */
 export async function playMoves(
   page: Page,
-  moves: { from: string; to: string }[],
+  moves: Step[],
   { cinematics = "skip" }: PlayOptions = {},
 ) {
   for (const [i, move] of moves.entries()) {
@@ -109,8 +116,12 @@ export async function playMoves(
     // React commits between plies exactly as it does for a human player.
     let snapshot = await page.evaluate(
       ({ m, skip }) => {
-        window.__janggi!.play(m.from, m.to);
-        if (skip) window.__janggi!.skipCinematic();
+        if ("pass" in m) window.__janggi!.pass();
+        else window.__janggi!.play(m.from, m.to);
+        if (skip) {
+          window.__janggi!.skipCinematic();
+          window.__janggi!.skipVictory();
+        }
         return window.__janggi!.snapshot();
       },
       { m: move, skip: cinematics === "skip" },
@@ -123,7 +134,7 @@ export async function playMoves(
 
     expect(
       snapshot.moves,
-      `move ${i + 1} (${move.from}→${move.to}) was rejected by the engine`,
+      `move ${i + 1} (${"pass" in move ? "한수쉼" : `${move.from}→${move.to}`}) was rejected by the engine`,
     ).toBe(i + 1);
     expect(
       snapshot.cinematic,

@@ -8,6 +8,7 @@ import {
   resetCinematicClock,
   stage,
 } from "@/src/components/board/vfx/stage";
+import { victoryStage } from "@/src/components/board/vfx/victory";
 import { pieceAtSquare } from "@/src/game/adapters";
 import { useGameStore } from "@/src/game/store";
 
@@ -34,6 +35,8 @@ export interface JanggiTestApi {
   playAll: (moves: { from: string; to: string }[]) => void;
   /** 한수쉼 — same action the pass button dispatches */
   pass: () => void;
+  /** 재시작 — same action the restart button dispatches */
+  restart: () => void;
   /** 연출 스킵 — same action a tap on the cinematic overlay dispatches */
   skipCinematic: () => void;
   /**
@@ -46,6 +49,8 @@ export interface JanggiTestApi {
   resumeCinematic: () => void;
   /** Jump the timeline to cinematic second `t` (hitstop-adjusted). */
   seekCinematic: (t: number) => void;
+  /** 승리 연출 스킵 — same action a tap on the victory overlay dispatches */
+  skipVictory: () => void;
   snapshot: () => {
     turn: string;
     result: string | null;
@@ -57,6 +62,13 @@ export interface JanggiTestApi {
     cinematic: string;
     /** cinematic seconds elapsed (hitstop-frozen), 0 when idle */
     cinematicT: number;
+    /** id of the Tier 2 attack variant in play, or null */
+    variant: string | null;
+    /** piece type that made the capture, or null */
+    captorType: string | null;
+    /** winner side while the 외통 연출 plays, else null */
+    victory: string | null;
+    victoryT: number;
     decals: number;
     gore: boolean;
   };
@@ -110,6 +122,9 @@ export function E2EBridge() {
       pass: () => {
         useGameStore.getState().pass();
       },
+      restart: () => {
+        useGameStore.getState().restart();
+      },
       skipCinematic: () => {
         useGameStore.getState().skipCinematic();
       },
@@ -122,6 +137,9 @@ export function E2EBridge() {
       },
       seekCinematic: (t) => {
         cinematicClock.seek = rawForStageTime(t);
+      },
+      skipVictory: () => {
+        useGameStore.getState().skipVictory();
       },
       sampleFrame: () => {
         const canvas = document.querySelector("canvas");
@@ -167,6 +185,11 @@ export function E2EBridge() {
             : null,
           cinematic: s.cinematicPhase,
           cinematicT: stage.active ? stage.t : 0,
+          /** which Tier 2 attack the last capture used */
+          variant: s.cinematic?.variant ?? null,
+          captorType: s.cinematic?.attacker.type ?? null,
+          victory: s.victory ? s.victory.winner : null,
+          victoryT: victoryStage.active ? victoryStage.t : 0,
           decals: s.decals.length,
           gore: s.settings.gore,
         };

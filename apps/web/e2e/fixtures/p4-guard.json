@@ -1,0 +1,51 @@
+{
+  "description": "한 병이 d열로 궁성까지 내려오자 초 사(d1→d2)가 d3에서 포획 — 호위검",
+  "moves": [
+    {
+      "from": "d1",
+      "to": "d2"
+    },
+    {
+      "from": "e7",
+      "to": "d7"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d7",
+      "to": "d6"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d6",
+      "to": "d5"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d5",
+      "to": "d4"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d4",
+      "to": "d3"
+    },
+    {
+      "from": "d2",
+      "to": "d3"
+    }
+  ],
+  "expect": {
+    "captureAt": 10,
+    "capturedType": "soldier",
+    "captorType": "guard",
+    "captorSide": "cho"
+  }
+}

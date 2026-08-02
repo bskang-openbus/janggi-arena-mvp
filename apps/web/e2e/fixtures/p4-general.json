@@ -1,0 +1,51 @@
+{
+  "description": "한 병이 d열로 내려와 장군을 부르자 초 궁(e2→d2)이 직접 d3에서 포획 — 왕의 위엄",
+  "moves": [
+    {
+      "from": "e2",
+      "to": "d2"
+    },
+    {
+      "from": "e7",
+      "to": "d7"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d7",
+      "to": "d6"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d6",
+      "to": "d5"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d5",
+      "to": "d4"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "d4",
+      "to": "d3"
+    },
+    {
+      "from": "d2",
+      "to": "d3"
+    }
+  ],
+  "expect": {
+    "captureAt": 10,
+    "capturedType": "soldier",
+    "captorType": "general",
+    "captorSide": "cho"
+  }
+}

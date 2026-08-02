@@ -11,16 +11,19 @@
 import type { GameState, Piece, Side, Square } from "engine";
 import {
   applyAction,
+  findGeneral,
   initialState,
   isCheck,
   isLegal,
   legalMovesFrom,
+  opponent,
 } from "engine";
 import { create } from "zustand";
 import type { PieceView, SquareRef } from "@/src/components/board/types";
 import type { BloodDecal } from "@/src/components/board/vfx/BloodDecals";
 import { variantIdFor } from "@/src/components/board/vfx/attackVariants";
 import type { CinematicPlan } from "@/src/components/board/vfx/stage";
+import type { VictoryPlan } from "@/src/components/board/vfx/victory";
 import {
   boardToPieceViews,
   capturedBy,
@@ -137,6 +140,10 @@ export interface GameStore extends Derived {
   decals: BloodDecal[];
   /** decal waiting for the 1.5s dissolve beat */
   pendingDecal: BloodDecal | null;
+  /** 외통 승리 연출 (P4) — non-null while it plays */
+  victory: VictoryPlan | null;
+  /** armed at 외통, released once any capture cinematic has finished */
+  pendingVictory: VictoryPlan | null;
   settings: Settings;
   settingsOpen: boolean;
 
@@ -153,6 +160,10 @@ export interface GameStore extends Derived {
   skipCinematic: () => void;
   /** 1.5s 디졸브 시점: 혈흔 데칼을 영구 목록으로 옮긴다 */
   commitDecal: () => void;
+  /** 승리 연출이 3.2s를 다 재생했다 */
+  endVictory: () => void;
+  /** 화면 클릭 / "연출 스킵" — 결과 오버레이로 바로 넘어간다 */
+  skipVictory: () => void;
   openSettings: (open: boolean) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   /** read localStorage once on the client (SSR renders the defaults) */
@@ -170,8 +181,21 @@ function freshGame() {
     cinematic: null,
     decals: [] as BloodDecal[],
     pendingDecal: null,
+    victory: null,
+    pendingVictory: null,
     ...derive(state),
   };
+}
+
+/**
+ * 외통이면 승리 연출 계획을 만든다. 무승부(빅장·반복)는 대상이 아니다 —
+ * docs/SCENES.md 3절이 규정하는 것은 "궁 — 외통 승리 연출"뿐이다.
+ */
+function victoryFor(state: GameState): VictoryPlan | null {
+  const result = state.result;
+  if (result?.type !== "checkmate") return null;
+  const at = findGeneral(state.board, opponent(result.winner));
+  return at ? { winner: result.winner, at } : null;
 }
 
 /** Newest first; the board keeps at most this many battle marks. */
@@ -243,6 +267,10 @@ function commit(
     }
   }
 
+  // The mating move is usually a capture, so the two cinematics queue rather
+  // than fight: 포획 연출이 끝나야 승리 연출이 시작된다.
+  const victoryPlan = victoryFor(next);
+
   return {
     state: next,
     selectedId: null,
@@ -251,6 +279,8 @@ function commit(
     cinematic,
     cinematicPhase: cinematic ? "cinematic" : "idle",
     pendingDecal,
+    victory: cinematic ? null : victoryPlan,
+    pendingVictory: cinematic ? victoryPlan : null,
     ...derive(next),
   };
 }
@@ -292,6 +322,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ...flushDecal(s),
       cinematic: null,
       cinematicPhase: "idle" as CinematicPhase,
+      victory: s.pendingVictory,
+      pendingVictory: null,
     })),
 
   skipCinematic: () =>
@@ -302,8 +334,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ...flushDecal(s),
             cinematic: null,
             cinematicPhase: "idle" as CinematicPhase,
+            victory: s.pendingVictory,
+            pendingVictory: null,
           },
     ),
+
+  endVictory: () => set({ victory: null }),
+
+  skipVictory: () => set({ victory: null }),
 
   commitDecal: () => set((s) => flushDecal(s)),
 

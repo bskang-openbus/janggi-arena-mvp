@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p ${WEB_PORT:-3002}",
     "lint": "eslint",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "fixtures:p4": "node --import ../../packages/engine/scripts/ts-resolve.mjs scripts/generate-p4-fixtures.ts"
   },
   "dependencies": {
     "engine": "workspace:*",

@@ -1,0 +1,22 @@
+{
+  "description": "초 졸이 비켜 a열을 열고 초 차(a1)가 직진해 한 병(a7)을 포획 — 돌진 참격",
+  "moves": [
+    {
+      "from": "a4",
+      "to": "b4"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "a1",
+      "to": "a7"
+    }
+  ],
+  "expect": {
+    "captureAt": 2,
+    "capturedType": "soldier",
+    "captorType": "chariot",
+    "captorSide": "cho"
+  }
+}

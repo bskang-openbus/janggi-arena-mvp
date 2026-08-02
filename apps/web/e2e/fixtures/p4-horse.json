@@ -1,0 +1,36 @@
+{
+  "description": "초 졸이 멱을 비켜주고 초 마(h1)가 3회 도약해 한 병(i7)을 포획 — 도약 강습",
+  "moves": [
+    {
+      "from": "g4",
+      "to": "f4"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "h1",
+      "to": "g3"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "g3",
+      "to": "h5"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "h5",
+      "to": "i7"
+    }
+  ],
+  "expect": {
+    "captureAt": 6,
+    "capturedType": "soldier",
+    "captorType": "horse",
+    "captorSide": "cho"
+  }
+}

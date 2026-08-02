@@ -24,6 +24,10 @@ import { type BloodDecal, BloodDecals } from "./vfx/BloodDecals";
 import { CaptureFX } from "./vfx/CaptureFX";
 import { CinematicDirector } from "./vfx/CinematicDirector";
 import { type CinematicPlan, stage } from "./vfx/stage";
+import { VictoryDirector } from "./vfx/VictoryDirector";
+import type { VictoryPlan } from "./vfx/victory";
+// side effect: registers the seven Tier 2 attacks into the P3 variant slot
+import "./vfx/variants";
 
 /**
  * Dev/E2E only: lets Playwright read the framebuffer back (`sampleFrame`) to
@@ -60,6 +64,10 @@ export interface JanggiSceneProps {
   onCinematicEnd?: () => void;
   /** 1.5s — commit the 혈흔 데칼 so it survives the cinematic */
   onDecalCommit?: () => void;
+  /** 외통 승리 연출 (P4) — non-null while it plays */
+  victory?: VictoryPlan | null;
+  /** the victory timeline ran to its end (3.2s) */
+  onVictoryEnd?: () => void;
 }
 
 const CAMERA_FOV = 38;
@@ -235,6 +243,8 @@ function BoardContents({
   decals = [],
   onCinematicEnd,
   onDecalCommit,
+  victory = null,
+  onVictoryEnd,
 }: JanggiSceneProps) {
   const occupied = useMemo(() => {
     const s = new Set<string>();
@@ -266,6 +276,12 @@ function BoardContents({
         homeTarget={SCENE_TARGET}
         onEnd={onCinematicEnd ?? noop}
         onDecal={onDecalCommit ?? noop}
+      />
+
+      <VictoryDirector
+        plan={victory}
+        homeTarget={SCENE_TARGET}
+        onEnd={onVictoryEnd ?? noop}
       />
 
       {cinematic && (

@@ -10,6 +10,7 @@ import { CinematicOverlay } from "./CinematicOverlay";
 import { E2EBridge } from "./E2EBridge";
 import { ResultOverlay } from "./ResultOverlay";
 import { SettingsOverlay } from "./SettingsOverlay";
+import { VictoryOverlay } from "./VictoryOverlay";
 
 /** 대국 화면 (docs/PRD.md 4절): 3D 보드 중앙, 상단 턴·장군, 좌우 잡힌 말, 하단 조작. */
 export function GameScreen() {
@@ -31,6 +32,7 @@ export function GameScreen() {
   const decals = useGameStore((s) => s.decals);
   const settings = useGameStore((s) => s.settings);
   const settingsOpen = useGameStore((s) => s.settingsOpen);
+  const victory = useGameStore((s) => s.victory);
 
   const selectPiece = useGameStore((s) => s.selectPiece);
   const clickSquare = useGameStore((s) => s.clickSquare);
@@ -40,6 +42,8 @@ export function GameScreen() {
   const endCinematic = useGameStore((s) => s.endCinematic);
   const skipCinematic = useGameStore((s) => s.skipCinematic);
   const commitDecal = useGameStore((s) => s.commitDecal);
+  const endVictory = useGameStore((s) => s.endVictory);
+  const skipVictory = useGameStore((s) => s.skipVictory);
   const openSettings = useGameStore((s) => s.openSettings);
   const updateSettings = useGameStore((s) => s.updateSettings);
   const hydrateSettings = useGameStore((s) => s.hydrateSettings);
@@ -52,6 +56,7 @@ export function GameScreen() {
   const turnTheme = SIDE_THEME[turn];
   const inCheck = checkSide !== null;
   const playing = cinematicPhase === "cinematic";
+  const celebrating = victory !== null;
   const lowSpec = settings.lowSpec;
 
   return (
@@ -60,6 +65,7 @@ export function GameScreen() {
       data-turn={turn}
       data-result={result ? result.type : "playing"}
       data-cinematic={cinematicPhase}
+      data-victory={celebrating ? "playing" : "idle"}
       className="relative h-dvh w-full touch-none overflow-hidden bg-[#05060b]"
     >
       <JanggiScene
@@ -76,12 +82,14 @@ export function GameScreen() {
         decals={decals}
         onCinematicEnd={endCinematic}
         onDecalCommit={commitDecal}
+        victory={victory}
+        onVictoryEnd={endVictory}
       />
 
       {/* HUD dims while the cinematic runs so the duel owns the frame */}
       <div
         className={`pointer-events-none absolute inset-0 z-10 transition-opacity duration-300 ${
-          playing ? "opacity-35" : "opacity-100"
+          playing || celebrating ? "opacity-35" : "opacity-100"
         }`}
       >
       {/* ── 상단: 턴 표시 + 장군 경고 + 마지막 수 ─────────────────── */}
@@ -186,6 +194,10 @@ export function GameScreen() {
 
       {playing && <CinematicOverlay onSkip={skipCinematic} />}
 
+      {victory && (
+        <VictoryOverlay winner={victory.winner} onSkip={skipVictory} />
+      )}
+
       {settingsOpen && (
         <SettingsOverlay
           settings={settings}
@@ -194,7 +206,7 @@ export function GameScreen() {
         />
       )}
 
-      {result && !playing && (
+      {result && !playing && !celebrating && (
         <ResultOverlay result={result} onRematch={restart} onTitle={goTitle} />
       )}
 

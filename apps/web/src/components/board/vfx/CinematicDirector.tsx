@@ -37,6 +37,13 @@ const SKIP_RESTORE = 0.36;
 interface Shot extends DuelGeometry {
   camPos: Vector3;
   camTarget: Vector3;
+  /**
+   * Where the attacker actually is at the moment of impact — the variant's own
+   * `offset(k = 1)`, not the geometric `strike`. A 포 never leaves its square
+   * and a 마 lands from above; blending the post-impact settle from the
+   * geometric point would snap those pieces sideways on the impact frame.
+   */
+  landing: [number, number, number];
 }
 
 /**
@@ -47,6 +54,18 @@ interface Shot extends DuelGeometry {
 function buildShot(plan: CinematicPlan, camera: Vector3): Shot {
   const g = duelGeometry(plan);
   const [dx, , dz] = g.dir;
+
+  const impact = getAttackVariant(plan.variant).offset({
+    k: 1,
+    t: T.impact,
+    dir: g.dir,
+    reach: g.reach,
+  });
+  const landing: [number, number, number] = [
+    g.staging[0] + impact[0],
+    impact[1],
+    g.staging[2] + impact[2],
+  ];
 
   // frame the *pair*: halfway between where the attacker strikes from and
   // the square it strikes into
@@ -69,7 +88,7 @@ function buildShot(plan: CinematicPlan, camera: Vector3): Shot {
     camTarget.z + sz * 3.2 - dz * 0.25,
   );
 
-  return { ...g, camPos, camTarget };
+  return { ...g, camPos, camTarget, landing };
 }
 
 export interface CinematicDirectorProps {
@@ -179,8 +198,8 @@ export function CinematicDirector({
           // walks straight through its dissolving victim.
           const recoil = -0.16 * Math.exp(-(t - T.impact) * 6.5);
           const settle = smoothstep(T.dissolve + 0.4, 2.4, t);
-          const bx = g.strike[0] + g.dir[0] * recoil;
-          const bz = g.strike[2] + g.dir[2] * recoil;
+          const bx = g.landing[0] + g.dir[0] * recoil;
+          const bz = g.landing[2] + g.dir[2] * recoil;
           px = lerp(bx, g.to[0], settle);
           pz = lerp(bz, g.to[2], settle);
           py = lerp(py, 0, settle);
@@ -216,9 +235,10 @@ export function CinematicDirector({
         smoothstep(0, 0.42, t) * (1 - smoothstep(T.restore, T.end - 0.15, t));
       stage.flash =
         t < T.impact ? 0 : Math.min(1, Math.exp(-(t - T.impact) * 10));
+      const weight = variant.traumaScale ?? 1;
       stage.trauma =
         (t < T.attack ? 0 : 0.22 * Math.exp(-(t - T.attack) * 5)) +
-        (t < T.impact ? 0 : 1.0 * Math.exp(-(t - T.impact) * 3.1));
+        (t < T.impact ? 0 : weight * Math.exp(-(t - T.impact) * 3.1));
 
       /* ── 혈흔 데칼은 연출이 끝나도 남는다 ──────────────────────── */
       if (!decalFired.current && t >= T.dissolve) {
@@ -239,6 +259,12 @@ export function CinematicDirector({
       tmpA.lerpVectors(homePos.current, tmpA, intro);
       tmpA.lerp(homePos.current, outro);
 
+      // 마처럼 뛰어오르는 연출은 카메라가 같이 올라가지 않으면 프레임을 벗어난다
+      const ak = clamp01((t - T.attack) / (T.impact - T.attack));
+      const lift =
+        variant.cameraLift?.({ k: ak, t, dir: g.dir, reach: g.reach }) ?? 0;
+      tmpA.y += lift;
+
       const shake = stage.trauma * stage.trauma * 0.24;
       if (shake > 0.0004) {
         tmpA.x += Math.sin(t * 71.3) * shake;
@@ -249,6 +275,7 @@ export function CinematicDirector({
 
       tmpB.lerpVectors(homeTgt.current, g.camTarget, intro);
       tmpB.lerp(homeTgt.current, outro);
+      tmpB.y += lift * 0.75;
       camera.lookAt(tmpB);
 
       if (stage.raw >= DURATION) {

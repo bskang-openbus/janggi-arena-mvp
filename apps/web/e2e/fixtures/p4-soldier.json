@@ -1,0 +1,29 @@
+{
+  "description": "초 졸(a4)이 a열을 따라 전진해 한 병(a7)을 포획 — 창격 연출",
+  "moves": [
+    {
+      "from": "a4",
+      "to": "a5"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "a5",
+      "to": "a6"
+    },
+    {
+      "pass": true
+    },
+    {
+      "from": "a6",
+      "to": "a7"
+    }
+  ],
+  "expect": {
+    "captureAt": 4,
+    "capturedType": "soldier",
+    "captorType": "soldier",
+    "captorSide": "cho"
+  }
+}

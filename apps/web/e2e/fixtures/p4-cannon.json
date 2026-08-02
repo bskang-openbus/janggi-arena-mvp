@@ -1,0 +1,23 @@
+{
+  "description": "초 졸이 b4로 이동해 포다리가 되고, 한 병이 b7로 들어오자 초 포(b3)가 넘어 포획 — 포격",
+  "moves": [
+    {
+      "from": "a4",
+      "to": "b4"
+    },
+    {
+      "from": "a7",
+      "to": "b7"
+    },
+    {
+      "from": "b3",
+      "to": "b7"
+    }
+  ],
+  "expect": {
+    "captureAt": 2,
+    "capturedType": "soldier",
+    "captorType": "cannon",
+    "captorSide": "cho"
+  }
+}

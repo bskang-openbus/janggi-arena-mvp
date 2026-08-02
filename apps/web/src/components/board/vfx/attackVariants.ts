@@ -46,6 +46,17 @@ export interface AttackVariant {
   offset(ctx: AttackContext): [number, number, number];
   /** Extra emissive gain on the attacker during the window (0..1). */
   awaken?(ctx: AttackContext): number;
+  /**
+   * Multiplier on the impact camera shake. A 상 내려찍기 has to feel heavier
+   * than a 졸 창격 even though both share the Tier 1 impact beat.
+   */
+  traumaScale?: number;
+  /**
+   * World-space height added to the cinematic camera *and* its look target, so
+   * an attack that leaves the ground can be followed (SCENES.md 3절 마: "카메라
+   * 상향 추적"). Returns to 0 by the impact or the shot snaps back.
+   */
+  cameraLift?(ctx: AttackContext): number;
   /** Optional extra scene content, mounted for the whole cinematic. */
   Extras?: ComponentType<AttackExtrasProps>;
 }
