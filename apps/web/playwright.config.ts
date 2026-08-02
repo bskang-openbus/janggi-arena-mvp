@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3002;
+// Overridable so parallel agents / dev servers don't fight over a port.
+const PORT = Number(process.env.WEB_PORT ?? 3002);
 const BASE_URL = `http://localhost:${PORT}`;
 
 export default defineConfig({
