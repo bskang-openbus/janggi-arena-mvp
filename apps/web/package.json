@@ -11,27 +11,28 @@
     "fixtures:p4": "node --import ../../packages/engine/scripts/ts-resolve.mjs scripts/generate-p4-fixtures.ts"
   },
   "dependencies": {
+    "@react-three/drei": "10.7.7",
+    "@react-three/fiber": "9.7.0",
+    "@react-three/postprocessing": "3.0.4",
     "engine": "workspace:*",
+    "next": "15.5.22",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.22",
+    "socket.io-client": "4.8.3",
     "three": "0.185.1",
-    "@react-three/fiber": "9.7.0",
-    "@react-three/drei": "10.7.7",
-    "@react-three/postprocessing": "3.0.4",
     "zustand": "5.0.14"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
+    "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.62.1",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "@types/three": "0.185.3",
     "eslint": "^9",
     "eslint-config-next": "15.5.22",
-    "@eslint/eslintrc": "^3",
-    "@playwright/test": "1.62.1",
-    "@types/three": "0.185.3"
+    "tailwindcss": "^4",
+    "typescript": "5.9.3"
   }
 }

@@ -139,6 +139,98 @@ export interface CapturedGroup {
   count: number;
 }
 
+/* ------------------------------------------------------------------ */
+/* 온라인 대국 (P5) — 서버 스냅샷 → 화면 데이터                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 서버 스냅샷의 `captured[side]` (그 진영이 *잃은* 기물)를 잡힌 말 목록으로
+ * 묶는다. 로컬의 `capturedBy`는 history에서 파생하지만, 온라인은 history가
+ * 없고 서버가 계산한 목록이 진실이다.
+ */
+export function groupCaptured(pieces: readonly Piece[]): CapturedGroup[] {
+  const groups = new Map<string, CapturedGroup>();
+  for (const victim of pieces) {
+    const key = `${victim.side}-${victim.type}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      groups.set(key, {
+        type: victim.type,
+        side: victim.side,
+        glyph: glyphOf(victim),
+        count: 1,
+      });
+    }
+  }
+  return [...groups.values()];
+}
+
+/** `describeAction`의 온라인판 — 입력이 engine history 대신 서버 LastAction. */
+export function describeLastAction(
+  last: {
+    side: Side;
+    kind: "move" | "pass";
+    from: Square | null;
+    to: Square | null;
+    captured: Piece | null;
+    check: boolean;
+    auto: boolean;
+  },
+  boardAfter: Board,
+): string {
+  const who = SIDE_LABEL[last.side];
+  if (last.kind === "pass" || !last.from || !last.to) {
+    return `${who} 한수쉼${last.auto ? " (시간 초과 자동)" : ""}`;
+  }
+  const moved = pieceAtSquare(boardAfter, last.to);
+  const head = `${who}${moved ? ` ${glyphOf(moved)}` : ""}`;
+  const tail = last.captured
+    ? ` (${glyphOf(last.captured)} 포획)`
+    : last.check
+      ? " 장군!"
+      : "";
+  return `${head} ${toNotation(last.from)}→${toNotation(last.to)}${tail}`;
+}
+
+/** 서버 판정(기권·시간초과·몰수)을 포함한 결과 문구. */
+export function matchResultLabel(
+  result: {
+    type: "checkmate" | "draw" | "resign" | "timeout" | "forfeit";
+    winner?: Side;
+    loser?: Side;
+    reason?: string;
+  },
+  mySide: Side | null,
+): { title: string; detail: string; outcome: "win" | "lose" | "draw" } {
+  if (result.type === "draw") {
+    return {
+      title: "무승부",
+      detail:
+        result.reason === "facing"
+          ? "빅장 — 두 궁이 마주 봄"
+          : "동일 국면 3회 반복",
+      outcome: "draw",
+    };
+  }
+  const winner = result.winner ?? "cho";
+  const loser: Side = winner === "cho" ? "han" : "cho";
+  const detail =
+    result.type === "checkmate"
+      ? "외통 (장군을 벗어날 수 없음)"
+      : result.type === "resign"
+        ? `${SIDE_LABEL[loser]} 기권`
+        : result.type === "timeout"
+          ? `${SIDE_LABEL[loser]} 시간 초과 — 장군 상태에서는 한수쉼을 할 수 없습니다`
+          : `${SIDE_LABEL[loser]} 자동 한수쉼 누적 (시간 초과 반복)`;
+  return {
+    title: `${SIDE_LABEL[winner]} 승`,
+    detail,
+    outcome: mySide === null ? "draw" : mySide === winner ? "win" : "lose",
+  };
+}
+
 /**
  * Pieces `captor` has taken from the opponent, grouped by type.
  * Derived straight from `history` so it can never drift from the board.
