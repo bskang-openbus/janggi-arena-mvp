@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { SfxDirector } from "@/src/audio/SfxDirector";
 import { JanggiScene } from "@/src/components/board/JanggiScene";
 import { SIDE_THEME } from "@/src/components/board/palette";
 import { SIDE_LABEL } from "@/src/game/adapters";
@@ -210,6 +211,7 @@ export function GameScreen() {
         <ResultOverlay result={result} onRematch={restart} onTitle={goTitle} />
       )}
 
+      <SfxDirector />
       <E2EBridge />
     </main>
   );

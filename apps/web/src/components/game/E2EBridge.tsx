@@ -2,6 +2,7 @@
 
 import { parseNotation, toNotation } from "engine";
 import { useEffect } from "react";
+import { sfxCounts, sfxState } from "@/src/audio/engine";
 import {
   cinematicClock,
   rawForStageTime,
@@ -71,6 +72,13 @@ export interface JanggiTestApi {
     victoryT: number;
     decals: number;
     gore: boolean;
+    /** 사운드 ON/OFF (설정 오버레이) */
+    sound: boolean;
+    /** P6: SFX id별 재생 호출 횟수 + `total`. 소리 자체는 검증할 수 없으므로
+     *  타임라인 훅이 제때 트리거되는지를 이 카운터로 확인한다 */
+    sfx: Record<string, number>;
+    /** AudioContext 상태 ("none" | "suspended" | "running") */
+    sfxState: string;
   };
   /**
    * Reads the WebGL framebuffer back through a 2D canvas so a test can prove
@@ -192,6 +200,9 @@ export function E2EBridge() {
           victoryT: victoryStage.active ? victoryStage.t : 0,
           decals: s.decals.length,
           gore: s.settings.gore,
+          sound: s.settings.sound,
+          sfx: { ...sfxCounts },
+          sfxState: sfxState(),
         };
       },
     };

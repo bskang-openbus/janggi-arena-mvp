@@ -24,8 +24,7 @@ const ROWS: ToggleRow[] = [
   {
     key: "sound",
     label: "사운드",
-    detail: "효과음은 다음 단계에서 추가됩니다",
-    disabled: true,
+    detail: "Web Audio 합성 효과음 (선택·착수·타격·외통). 끄면 오디오가 정지합니다",
   },
   {
     key: "lowSpec",
