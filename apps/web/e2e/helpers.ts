@@ -60,10 +60,23 @@ export async function playCapturePaused(
   return snapshot;
 }
 
-/** Give the clock back to real time and let the timeline finish. */
+/**
+ * Give the clock back to real time and let the timeline play itself out.
+ * Use where the *release* of the input lock is what's under test.
+ */
 export async function resumeAndFinish(page: Page) {
   await page.evaluate(() => window.__janggi!.resumeCinematic());
   await waitCinematicIdle(page);
+}
+
+/**
+ * Teardown counterpart: jump past the end of the timeline instead of waiting
+ * out the remaining wall-clock seconds, then hand the clock back.
+ */
+export async function finishCinematic(page: Page) {
+  await page.evaluate(() => window.__janggi!.seekCinematic(9));
+  await waitCinematicIdle(page);
+  await page.evaluate(() => window.__janggi!.resumeCinematic());
 }
 
 export interface PlayOptions {
@@ -91,15 +104,23 @@ export async function playMoves(
   { cinematics = "skip" }: PlayOptions = {},
 ) {
   for (const [i, move] of moves.entries()) {
-    await page.evaluate((m) => window.__janggi!.play(m.from, m.to), move);
+    // One round trip per ply — play, clear the lock and read back together.
+    // Still one *ply* per trip (not the whole list in a single evaluate) so
+    // React commits between plies exactly as it does for a human player.
+    let snapshot = await page.evaluate(
+      ({ m, skip }) => {
+        window.__janggi!.play(m.from, m.to);
+        if (skip) window.__janggi!.skipCinematic();
+        return window.__janggi!.snapshot();
+      },
+      { m: move, skip: cinematics === "skip" },
+    );
 
-    if (cinematics === "skip") {
-      await page.evaluate(() => window.__janggi!.skipCinematic());
-    } else {
+    if (snapshot.cinematic !== "idle") {
       await waitCinematicIdle(page);
+      snapshot = await page.evaluate(() => window.__janggi!.snapshot());
     }
 
-    const snapshot = await page.evaluate(() => window.__janggi!.snapshot());
     expect(
       snapshot.moves,
       `move ${i + 1} (${move.from}→${move.to}) was rejected by the engine`,

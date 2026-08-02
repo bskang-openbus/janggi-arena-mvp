@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import captureGame from "./fixtures/capture-game.json";
 import {
   ARTIFACTS,
+  finishCinematic,
   playCapturePaused,
   playMoves,
   resumeAndFinish,
@@ -31,6 +32,14 @@ import {
 const CAPTURE = captureGame.moves[captureGame.moves.length - 1];
 const SETUP = captureGame.moves.slice(0, -1);
 
+/**
+ * By the time a fixture replay finishes, the scene has been rendering for
+ * seconds — every procedural texture is built and the bloom has converged.
+ * These waits only cover the piece-glide easing (~90% in 0.3s), so they stay
+ * short; the long settles the P2 specs use would be pure idle time here.
+ */
+const SETTLE_MS = 400;
+
 /** 타격 직후 — 히트스톱이 시간을 멈춰 둔 구간 */
 const IMPACT_T = 1.26;
 /** 디졸브 중반 — 고스트가 절반쯤 재로 무너진 시점 */
@@ -42,7 +51,7 @@ test("포획 시 공통 전투 연출이 재생되고 연출 중 입력이 잠�
   await startLocalGame(page);
   await playMoves(page, SETUP);
 
-  await settleScene(page, 1400);
+  await settleScene(page, SETTLE_MS);
   await page.screenshot({ path: path.join(ARTIFACTS, "p3-before.png") });
   const before = await page.evaluate(() => window.__janggi!.sampleFrame());
   expect(before, "sampleFrame needs preserveDrawingBuffer").not.toBeNull();
@@ -99,7 +108,7 @@ test("포획 시 공통 전투 연출이 재생되고 연출 중 입력이 잠�
   expect(after.decals).toBe(1); // 혈흔 데칼은 연출이 끝나도 남는다
   await expect(page.getByTestId("cinematic-overlay")).toHaveCount(0);
 
-  await settleScene(page, 900);
+  await settleScene(page, SETTLE_MS);
   await page.screenshot({ path: path.join(ARTIFACTS, "p3-after.png") });
 
   // 잠금이 풀렸으니 다시 둘 수 있다
@@ -128,7 +137,7 @@ test("디졸브 소멸 구간이 경계 발광과 재 파티클로 렌더된다"
     undefined,
     { timeout: 10_000 },
   );
-  await settleScene(page, 600);
+  await settleScene(page, 500);
   await page.screenshot({ path: path.join(ARTIFACTS, "p3-dissolve.png") });
 
   const shot = await page.evaluate(() => ({
@@ -140,7 +149,7 @@ test("디졸브 소멸 구간이 경계 발광과 재 파티클로 렌더된다"
   expect(shot.frame!.mean).toBeLessThan(235);
   expect(shot.frame!.colored).toBeGreaterThan(0.02);
 
-  await resumeAndFinish(page);
+  await finishCinematic(page);
 });
 
 test("혈흔 OFF면 백금색으로 대체되고 바닥 데칼이 생기지 않는다", async ({
@@ -173,7 +182,7 @@ test("혈흔 OFF면 백금색으로 대체되고 바닥 데칼이 생기지 않�
   expect(frame!.mean).toBeGreaterThan(4);
   expect(frame!.mean).toBeLessThan(235);
 
-  await resumeAndFinish(page);
+  await finishCinematic(page);
   const after = await page.evaluate(() => window.__janggi!.snapshot());
   expect(after.gore).toBe(false);
   expect(after.decals).toBe(0);
