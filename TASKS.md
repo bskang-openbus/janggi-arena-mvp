@@ -7,9 +7,9 @@
 
 ## P0. 스캐폴드
 
-- [ ] pnpm 모노레포 초기화 (`packages/engine`, `apps/web`), git init, 첫 커밋
-- [ ] engine: vitest 설정 + 더미 테스트 1개 green
-- [ ] web: Next.js 15 + R3F 빈 캔버스 렌더 + Playwright 설정, 스크린샷 1장 저장
+- [x] pnpm 모노레포 초기화 (`packages/engine`, `apps/web`), git init, 첫 커밋
+- [x] engine: vitest 설정 + 더미 테스트 1개 green
+- [x] web: Next.js 15 + R3F 빈 캔버스 렌더 + Playwright 설정, 스크린샷 1장 저장
 - 게이트: `pnpm -F engine test` && `pnpm -F web build` 성공
 
 ## P1. 장기 룰 엔진 (packages/engine)

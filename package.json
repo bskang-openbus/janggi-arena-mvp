@@ -1,0 +1,9 @@
+{
+  "name": "janggi-arena",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@10.30.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
