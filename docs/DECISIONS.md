@@ -107,3 +107,12 @@
 - 결정: `src/components/game/E2EBridge.tsx`가 `window.__janggi`에 `clickPiece/clickSquare/play/playAll/pass/snapshot`을 노출한다. **자체 게임 로직 없이 스토어 액션을 그대로 호출**하므로 검증 대상 로직은 프로덕션과 100% 동일하다. `play(from,to)`는 실제 보드처럼 도착점에 기물이 있으면 `clickPiece`(PieceMesh 경로), 없으면 `clickSquare`(픽 평면 경로)로 라우팅한다. 마운트 조건 = `NODE_ENV !== 'production' || NEXT_PUBLIC_E2E === '1'` → 프로덕션 번들에는 포함되지 않는다. 턴 표시·장군 배너·잡힌 말·결과 오버레이 등 화면 검증은 전부 실제 DOM 어서션으로 수행
 - 사유: 3D 픽 좌표 계산을 테스트에 복제하는 것보다 회귀 신뢰도가 높고, 프로덕션 로직과 분리 유지 조건도 만족
 - 영향: `apps/web/src/components/game/E2EBridge.tsx`, `apps/web/e2e/{helpers.ts,local-game.spec.ts,visual-board.spec.ts,canvas.spec.ts}`
+
+### [2026-08-03 04:05] P1 적대적 감사 결과 — 엔진 신뢰 확정 (rules-auditor, 오케스트레이터 기록)
+- 배경: P1 엔진을 독립 에이전트가 RULES.md에서 직접 유도한 레퍼런스로 적대 검증
+- 결정: 버그 0건 확인, audit.test.ts 112개 main 머지 (총 215 green). 퍼징 22.9만 회 불일치 0, perft d3=32964 독립 재계산 일치 (32^3과의 차이는 2수 빅장 조합 12가지로 전수 설명됨)
+- 주의사항 (후속 페이즈 함정, 특히 P4 픽스처 제작 시):
+  1. stateFrom()으로 초궁 e2·한궁 e9만 배치하고 e파일이 비면 이미 빅장 국면 — 어떤 수를 둬도 즉시 draw/facing. 커스텀 국면은 궁을 다른 파일에 두거나 사이에 기물을 넣을 것
+  2. 인위 국면에서 적 궁 포획 수가 생성됨 (실전 도달 불가 증명됨) — 커스텀 국면 설계 시 유의
+  3. RULES.md V01/V14/V15 수치는 문서 오류로 판명 (구현·DECISIONS 정정본이 기하학적으로 타당함을 독립 재유도로 확인)
+- 영향: packages/engine/src/audit.test.ts 신설, 이후 회귀 게이트에 포함
