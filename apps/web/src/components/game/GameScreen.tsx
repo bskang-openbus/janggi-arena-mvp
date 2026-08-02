@@ -2,6 +2,7 @@
 
 import type { GameResult, Side } from "engine";
 import { useEffect } from "react";
+import { SfxDirector } from "@/src/audio/SfxDirector";
 import { JanggiScene } from "@/src/components/board/JanggiScene";
 import { SIDE_THEME } from "@/src/components/board/palette";
 import { matchResultLabel, resultLabel, SIDE_LABEL } from "@/src/game/adapters";
@@ -268,6 +269,7 @@ export function GameScreen() {
         />
       )}
 
+      <SfxDirector />
       <E2EBridge />
     </main>
   );
