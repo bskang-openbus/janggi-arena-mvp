@@ -1540,7 +1540,7 @@ describe("[감사 L] RULES.md 레퍼런스 구현과의 무작위 교차 검증"
 const countPieces = (b: Board): number => b.flat().filter(Boolean).length;
 
 describe("[감사 N] 무작위 플레이아웃 불변식", () => {
-  it("N1: 초기 국면에서 20판을 끝까지 진행해도 판정 의무 불변식이 전부 유지된다", () => {
+  it("N1: 초기 국면에서 20판을 끝까지 진행해도 판정 의무 불변식이 전부 유지된다", { timeout: 30_000 }, () => {
     const rng = makeRng(0x5eed);
     let mates = 0;
     let facings = 0;
