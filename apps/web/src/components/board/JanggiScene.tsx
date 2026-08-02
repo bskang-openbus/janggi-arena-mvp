@@ -68,23 +68,41 @@ export interface JanggiSceneProps {
   victory?: VictoryPlan | null;
   /** the victory timeline ran to its end (3.2s) */
   onVictoryEnd?: () => void;
+  /**
+   * 카메라가 서는 진영 (P5 온라인: 내 진영 시점 고정). 기본 "cho" —
+   * 로컬 대국은 초 뒤에서 내려다보는 기존 시점을 그대로 쓴다.
+   */
+  viewSide?: Side;
 }
 
 const CAMERA_FOV = 38;
-/** Fixed viewing direction: 부감 from behind 초 (bottom of the screen). */
+/** Fixed viewing direction: 부감 from behind the viewer's own side. */
 const CAM_ELEVATION = Math.PI * 0.3; // ~54° above the horizon
 
 /**
- * Orbit pivot, pushed toward 초 so the board reads slightly above centre and
- * the bottom of the frame stays free for the match UI.
+ * Orbit pivot, pushed toward the viewer's side so the board reads slightly
+ * above centre and the bottom of the frame stays free for the match UI.
  */
 export const SCENE_TARGET: [number, number, number] = [0, 0, 0.9];
 
-function cameraPosition(distance: number): [number, number, number] {
+/** +1 = 초 뒤편(+Z), −1 = 한 뒤편(−Z). */
+function viewSign(side: Side): number {
+  return side === "han" ? -1 : 1;
+}
+
+function sceneTarget(side: Side): [number, number, number] {
+  return [SCENE_TARGET[0], SCENE_TARGET[1], SCENE_TARGET[2] * viewSign(side)];
+}
+
+function cameraPosition(
+  distance: number,
+  side: Side = "cho",
+): [number, number, number] {
+  const target = sceneTarget(side);
   return [
-    SCENE_TARGET[0],
-    SCENE_TARGET[1] + Math.sin(CAM_ELEVATION) * distance,
-    SCENE_TARGET[2] + Math.cos(CAM_ELEVATION) * distance,
+    target[0],
+    target[1] + Math.sin(CAM_ELEVATION) * distance,
+    target[2] + Math.cos(CAM_ELEVATION) * distance * viewSign(side),
   ];
 }
 
@@ -104,7 +122,13 @@ for (const sx of [-1, 1]) {
  * camera at t·d looking at the origin, every corner must satisfy
  * t >= dot(p,d) + |dot(p,axis)| / tan(fov/2).
  */
-function AutoFrame({ userMoved }: { userMoved: React.RefObject<boolean> }) {
+function AutoFrame({
+  userMoved,
+  viewSide,
+}: {
+  userMoved: React.RefObject<boolean>;
+  viewSide: Side;
+}) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const size = useThree((s) => s.size);
 
@@ -115,21 +139,19 @@ function AutoFrame({ userMoved }: { userMoved: React.RefObject<boolean> }) {
     const tanV = Math.tan(vFov / 2);
     const tanH = tanV * aspect;
 
+    const sign = viewSign(viewSide);
+    const target = sceneTarget(viewSide);
     const sinE = Math.sin(CAM_ELEVATION);
     const cosE = Math.cos(CAM_ELEVATION);
-    // camera basis for lookAt(origin) with world-up +Y
-    const d: [number, number, number] = [0, sinE, cosE];
+    // camera basis for lookAt(pivot) with world-up +Y
+    const d: [number, number, number] = [0, sinE, cosE * sign];
     const right: [number, number, number] = [1, 0, 0];
-    const up: [number, number, number] = [0, cosE, -sinE];
+    const up: [number, number, number] = [0, cosE, -sinE * sign];
 
     let distance = 0;
     for (const raw of FRAME_POINTS) {
       // solve relative to the orbit pivot
-      const p = [
-        raw[0] - SCENE_TARGET[0],
-        raw[1] - SCENE_TARGET[1],
-        raw[2] - SCENE_TARGET[2],
-      ];
+      const p = [raw[0] - target[0], raw[1] - target[1], raw[2] - target[2]];
       const along = p[0] * d[0] + p[1] * d[1] + p[2] * d[2];
       const dr = Math.abs(p[0] * right[0] + p[1] * right[1] + p[2] * right[2]);
       const du = Math.abs(p[0] * up[0] + p[1] * up[1] + p[2] * up[2]);
@@ -137,11 +159,11 @@ function AutoFrame({ userMoved }: { userMoved: React.RefObject<boolean> }) {
     }
     distance = Math.min(26, Math.max(9, distance * 1.08));
 
-    const [x, y, z] = cameraPosition(distance);
+    const [x, y, z] = cameraPosition(distance, viewSide);
     camera.position.set(x, y, z);
-    camera.lookAt(...SCENE_TARGET);
+    camera.lookAt(...target);
     camera.updateProjectionMatrix();
-  }, [camera, size.width, size.height, userMoved]);
+  }, [camera, size.width, size.height, userMoved, viewSide]);
 
   return null;
 }
@@ -245,6 +267,7 @@ function BoardContents({
   onDecalCommit,
   victory = null,
   onVictoryEnd,
+  viewSide = "cho",
 }: JanggiSceneProps) {
   const occupied = useMemo(() => {
     const s = new Set<string>();
@@ -273,14 +296,14 @@ function BoardContents({
       <CinematicDirector
         plan={cinematic}
         gore={gore}
-        homeTarget={SCENE_TARGET}
+        homeTarget={sceneTarget(viewSide)}
         onEnd={onCinematicEnd ?? noop}
         onDecal={onDecalCommit ?? noop}
       />
 
       <VictoryDirector
         plan={victory}
-        homeTarget={SCENE_TARGET}
+        homeTarget={sceneTarget(viewSide)}
         onEnd={onVictoryEnd ?? noop}
       />
 
@@ -310,6 +333,7 @@ function BoardContents({
           selected={p.id === selectedPieceId}
           alerted={p.id === alertedGeneralId}
           onPieceClick={onPieceClick}
+          glyphSpin={viewSide === "han"}
         />
       ))}
     </>
@@ -322,8 +346,15 @@ function BoardContents({
  */
 function noop() {}
 
-export function JanggiScene({ lowSpec = false, ...rest }: JanggiSceneProps) {
+export function JanggiScene({
+  lowSpec = false,
+  viewSide = "cho",
+  ...rest
+}: JanggiSceneProps) {
   const userMoved = useRef(false);
+  // 한 시점은 방위각 π 기준으로 같은 폭만큼 좌우 회전을 허용한다
+  // (three의 OrbitControls가 ±π 경계를 감아서 처리한다)
+  const azimuth = viewSide === "han" ? Math.PI : 0;
 
   useEffect(() => {
     return () => {
@@ -345,20 +376,21 @@ export function JanggiScene({ lowSpec = false, ...rest }: JanggiSceneProps) {
         fov: CAMERA_FOV,
         near: 0.1,
         far: 160,
-        position: cameraPosition(14),
+        position: cameraPosition(14, viewSide),
       }}
       data-testid="janggi-canvas"
     >
       <color attach="background" args={[BOARD_COLORS.background]} />
       <fog attach="fog" args={[BOARD_COLORS.background, 20, 52]} />
 
-      <AutoFrame userMoved={userMoved} />
+      <AutoFrame userMoved={userMoved} viewSide={viewSide} />
       <SceneLights lowSpec={lowSpec} />
-      <BoardContents lowSpec={lowSpec} {...rest} />
+      <BoardContents lowSpec={lowSpec} viewSide={viewSide} {...rest} />
 
       <OrbitControls
         makeDefault
-        target={SCENE_TARGET}
+        key={viewSide}
+        target={sceneTarget(viewSide)}
         enablePan={false}
         enableDamping
         dampingFactor={0.09}
@@ -368,8 +400,8 @@ export function JanggiScene({ lowSpec = false, ...rest }: JanggiSceneProps) {
         maxDistance={22}
         minPolarAngle={0.1}
         maxPolarAngle={1.17}
-        minAzimuthAngle={-0.8}
-        maxAzimuthAngle={0.8}
+        minAzimuthAngle={azimuth - 0.8}
+        maxAzimuthAngle={azimuth + 0.8}
         onStart={() => {
           userMoved.current = true;
         }}

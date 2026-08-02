@@ -71,6 +71,21 @@ export interface JanggiTestApi {
     victoryT: number;
     decals: number;
     gore: boolean;
+    /** "local" | "online" */
+    mode: string;
+    /** 온라인 세션 상태 — 로컬 대국에서는 null */
+    online: {
+      mySide: string | null;
+      /** 화면에 반영된 서버 ply */
+      ply: number;
+      status: string;
+      /** 아직 반영하지 못한(연출 대기) 스냅샷 수 */
+      pending: number;
+      myTurn: boolean;
+      /** 서버 판정 결과 타입 (기권·시간초과 포함) */
+      result: string | null;
+      autoPass: { cho: number; han: number } | null;
+    } | null;
   };
   /**
    * Reads the WebGL framebuffer back through a 2D canvas so a test can prove
@@ -192,6 +207,22 @@ export function E2EBridge() {
           victoryT: victoryStage.active ? victoryStage.t : 0,
           decals: s.decals.length,
           gore: s.settings.gore,
+          mode: s.mode,
+          online:
+            s.mode === "online"
+              ? {
+                  mySide: s.mySide,
+                  ply: s.snapshot?.ply ?? 0,
+                  status: s.snapshot?.status ?? "waiting",
+                  pending: s.pending.length,
+                  myTurn:
+                    !!s.snapshot &&
+                    s.snapshot.status === "playing" &&
+                    s.snapshot.turn === s.mySide,
+                  result: s.matchResult?.type ?? null,
+                  autoPass: s.snapshot?.autoPassCount ?? null,
+                }
+              : null,
         };
       },
     };

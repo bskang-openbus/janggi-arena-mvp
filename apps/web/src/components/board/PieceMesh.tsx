@@ -23,6 +23,12 @@ export interface PieceMeshProps {
   /** true for the 궁 of the side currently in 장군 */
   alerted: boolean;
   onPieceClick: (id: string) => void;
+  /**
+   * 한 진영 시점(온라인, P5)에서는 카메라가 판 반대편에 선다. 각인이 거꾸로
+   * 읽히지 않도록 면판을 180° 돌린다 — 실제 장기판에서 각자의 말이 자기
+   * 쪽을 향하는 것과 같다.
+   */
+  glyphSpin?: boolean;
 }
 
 const RIM_BAND = 0.05;
@@ -37,6 +43,7 @@ export function PieceMesh({
   selected,
   alerted,
   onPieceClick,
+  glyphSpin = false,
 }: PieceMeshProps) {
   const { radius, height } = PIECE_METRICS[piece.type];
   const theme = SIDE_THEME[piece.side];
@@ -249,7 +256,7 @@ export function PieceMesh({
         {/* engraved hanja face plate */}
         <mesh
           position={[0, height + 0.033, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
+          rotation={[-Math.PI / 2, 0, glyphSpin ? Math.PI : 0]}
           renderOrder={2}
         >
           <planeGeometry args={[faceSize, faceSize]} />

@@ -210,3 +210,20 @@
 - 결정: `expect.timeout` 15초 → **30초**. P3-fix2에서 테스트 예산에 대해 내린 것과 같은 판단을 어서션 예산에도 적용한다 — 경계선 한도는 "느림"과 "고장"을 구분하지 못하고, 두 예산을 8배나 벌려 두면 느린 네비게이션 하나가 자기 한도 근처에도 못 간 테스트를 죽인다. 가장 취약한 순간은 모든 테스트의 진입점인 `startLocalGame`의 첫 `page.goto` 직후다
 - 검증: 수정 후 전체 스위트 **연속 2회 19/19 green** (3.4분 / 3.6분)
 - 영향: `apps/web/playwright.config.ts`
+
+### [2026-08-03 06:50] P5 웹 통합 — 온라인 대국을 로컬 대국 위에 얹은 방식
+- 배경: `apps/server`(NestJS+socket.io, 테스트 51 green)는 완성되어 있었고 웹만 미연결. TASKS.md P5는 화면 구성만 정하고 스토어·연출·카메라와의 접합은 정의하지 않았다
+- 결정:
+  1. **스냅샷을 그대로 그린다(판을 로컬에서 진행시키지 않는다)** — 클라이언트가 `applyAction`으로 같은 수를 재생하면 코드는 줄지만 한 번이라도 스냅샷을 놓치면 서버와 조용히 어긋난다. 대신 `stateFrom(board, turn)`로 매 스냅샷마다 상태를 새로 만들고, 잡힌 말·마지막 수·장군 여부는 스냅샷에서 읽는다. 로컬 엔진은 **내 차례에 도착점을 미리 하이라이트하는 용도로만** 쓰고 합법성의 최종 판정은 서버가 한다
+  2. **스토어 하나에 mode를 둔다** — 온라인 전용 화면을 새로 만들면 P3·P4 연출 상태머신(포획 큐잉·승리 연출·데칼)이 통째로 복제된다. `GameScreen`/`store.ts`에 `mode: "local"|"online"`을 넣고 온라인 경로만 분기했다. 포획 연출 계획 생성은 `stageCapture()`로 뽑아 로컬(history)·온라인(lastAction) 두 입력이 같은 코드를 쓴다
+  3. **소켓은 스토어를 import 하지 않는다** — `src/net/socket.ts`(전송) → `src/game/online.ts`(세션) → `src/game/store.ts`(판) 한 방향. 스토어는 온라인 대국 시작 시 주입된 `net.move/pass` 콜백으로만 서버에 말한다(순환 의존 회피). 소켓은 온라인 진입 시에만 생성 → 서버가 꺼져 있어도 로컬 대국 무영향
+  4. **연출 중 도착한 스냅샷은 큐잉** — 상대는 내 포획 연출이 끝나기를 기다려주지 않는다. `pending[]`에 도착 순서대로 쌓고 연출 종료(또는 스킵)마다 하나씩 꺼낸다. 꺼낸 것이 또 포획이면 그 연출이 다시 시작되고 나머지는 계속 대기한다
+  5. **재접속 복구 없음(`reconnection: false`)** — 서버가 좌석을 socket.id로 잡으므로 자동 재연결은 *다른 사람*으로 돌아와 `ROOM_FULL`이 된다. 조용히 재시도하는 대신 "연결이 끊어졌습니다"로 끝낸다 (PRD 3절 제외 항목)
+  6. **내 진영 시점 고정** — 한이면 카메라 방위각 π, 궤도 피벗 z 부호 반전, 각인 면판 180° 회전(`glyphSpin`). 월드를 회전시키지 않은 이유: 연출 카메라가 칸 좌표로 샷을 계산하므로 판을 돌리면 결투 프레이밍이 어긋난다
+  7. **결과 오버레이 일반화** — 서버 판정(기권·시간 초과·자동 한수쉼 몰수)은 엔진 `GameResult`에 없다. `ResultOverlay`가 문구·색·버튼을 props로 받도록 바꾸고 라벨링은 `adapters.ts`(`matchResultLabel`)로 모았다. 온라인은 재대국 버튼 대신 "방 나가기" 하나 (재대국 = 새 방)
+  8. **포트**: 규칙상 API = 프론트−1 = 3001인데 이 머신에서 다른 프로젝트가 3001을 점유 중이라 E2E 서버는 **3003**으로 옮겼다(CLAUDE.md 포트 충돌 회피 우선, `SERVER_PORT`로 변경 가능). 클라이언트 기본값은 PROTOCOL.md대로 `NEXT_PUBLIC_SERVER_URL ?? http://localhost:3001` 유지
+  9. **E2E 서버는 1수 180초** — 기본 60초면 SwiftShader에서 수마다 3D 프레임을 기다리는 사이 서버가 자동 한수쉼을 끼워 넣어 기보가 어긋난다. 시계 표시·경고 UI는 그대로 검증된다(자동 패스 규칙 자체는 서버 테스트 10개가 담당)
+  10. **`?server=` 런타임 오버라이드** — `NEXT_PUBLIC_*`는 빌드 시점에 박혀 "서버가 꺼진 상태"를 E2E로 만들 수 없다. 쿼리로 죽은 포트를 가리켜 홈 복귀+토스트와 로컬 대국 무영향을 회귀 테스트로 고정했다
+- 검증: `pnpm -F server test` 51 green · `pnpm -F engine test` 215 green · `pnpm -F web build` · `pnpm -F web e2e` **23 green**(기존 19 회귀 없음 + 온라인 4)
+- 서버 프로토콜 이슈: 없음. PROTOCOL.md만 보고 붙였고 계약과 어긋난 동작은 발견되지 않았다 (`room:join` ack가 `game:start` 브로드캐스트보다 늦게 도착할 수 있어 양쪽 모두에서 대국을 여는 것만 클라이언트가 처리)
+- 영향: `apps/web/src/net/{protocol,socket}.ts`(신설), `src/game/{online.ts(신설),store.ts,adapters.ts}`, `src/components/game/{OnlineLobby,OnlineHud}.tsx`(신설), `{GameScreen,TitleScreen,ResultOverlay,E2EBridge}.tsx`, `src/components/board/{JanggiScene,PieceMesh}.tsx`, `app/page.tsx`, `e2e/online-match.spec.ts`(신설), `playwright.config.ts`

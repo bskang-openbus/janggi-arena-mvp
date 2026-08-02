@@ -1,5 +1,6 @@
 "use client";
 
+import { useOnlineStore } from "@/src/game/online";
 import { useGameStore } from "@/src/game/store";
 
 /**
@@ -8,6 +9,9 @@ import { useGameStore } from "@/src/game/store";
  */
 export function TitleScreen() {
   const startLocalGame = useGameStore((s) => s.startLocalGame);
+  const openLobby = useOnlineStore((s) => s.openLobby);
+  const error = useOnlineStore((s) => s.error);
+  const dismissError = useOnlineStore((s) => s.dismissError);
 
   return (
     <main
@@ -43,12 +47,21 @@ export function TitleScreen() {
           </button>
           <button
             type="button"
-            data-testid="online-button"
-            disabled
-            title="온라인 대국은 P5에서 제공됩니다"
-            className="min-w-56 cursor-not-allowed rounded-full border border-[#2c2721] bg-black/30 px-8 py-3 text-base tracking-[0.2em] text-[#5b544a]"
+            data-testid="online-create-button"
+            onClick={() => openLobby("create")}
+            title="방을 만들고 방 코드를 상대에게 알려줍니다"
+            className="min-w-56 rounded-full border border-[#3b6f63] bg-black/50 px-8 py-3 text-base tracking-[0.2em] text-[#a8fff2] backdrop-blur transition-colors hover:border-[#3ce9ca] hover:bg-[#08302a]/70"
           >
-            온라인 대국
+            온라인 방 만들기
+          </button>
+          <button
+            type="button"
+            data-testid="online-join-button"
+            onClick={() => openLobby("join")}
+            title="상대가 알려준 6자리 방 코드로 입장합니다"
+            className="min-w-56 rounded-full border border-[#7d4a42] bg-black/50 px-8 py-3 text-base tracking-[0.2em] text-[#ffb3a8] backdrop-blur transition-colors hover:border-[#e0554a] hover:bg-[#2a0d0a]/70"
+          >
+            방 코드 입장
           </button>
           <button
             type="button"
@@ -63,8 +76,21 @@ export function TitleScreen() {
       </div>
 
       <p className="relative mt-14 text-[11px] leading-relaxed text-[#6b6459]">
-        한 화면에서 두 명이 번갈아 두는 로컬 대국입니다.
+        로컬 대국은 한 화면에서 두 명이 번갈아 둡니다.
+        <br />
+        온라인 대국은 방 코드로 1:1 대국을 진행합니다.
       </p>
+
+      {error && (
+        <div
+          data-testid="online-error"
+          role="alert"
+          onClick={dismissError}
+          className="absolute inset-x-0 bottom-10 mx-auto max-w-md cursor-pointer rounded-2xl border border-[#7d2b22] bg-[#2a0d0a]/90 px-5 py-3 text-sm leading-relaxed text-[#ffb3a8] backdrop-blur"
+        >
+          {error}
+        </div>
+      )}
     </main>
   );
 }

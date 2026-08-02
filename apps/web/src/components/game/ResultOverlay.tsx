@@ -1,28 +1,41 @@
 "use client";
 
-import type { GameResult } from "engine";
-import { SIDE_THEME } from "@/src/components/board/palette";
-import { resultLabel } from "@/src/game/adapters";
+export interface ResultAction {
+  label: string;
+  testId: string;
+  onClick: () => void;
+}
 
-/** 외통 / 무승부 결과 오버레이 (docs/PRD.md 4절). */
+/**
+ * 대국 결과 오버레이 (docs/PRD.md 4절).
+ *
+ * 문구를 직접 받는 이유: 로컬은 엔진 결과(외통·무승부)만 나오지만 온라인은
+ * 기권·시간 초과·자동 한수쉼 몰수까지 서버가 판정한다 (PROTOCOL.md 6절).
+ * 두 경우의 라벨링은 `src/game/adapters.ts`가 담당한다.
+ */
 export function ResultOverlay({
-  result,
-  onRematch,
-  onTitle,
+  title,
+  detail,
+  accent,
+  note,
+  outcome,
+  primary,
+  secondary,
 }: {
-  result: GameResult;
-  onRematch: () => void;
-  onTitle: () => void;
+  title: string;
+  detail: string;
+  accent: string;
+  /** 추가 안내 (온라인: 재대국 방법) */
+  note?: string;
+  /** 온라인에서 내 관점의 승패 — E2E와 색조에 쓰인다 */
+  outcome?: "win" | "lose" | "draw";
+  primary: ResultAction;
+  secondary?: ResultAction;
 }) {
-  const { title, detail } = resultLabel(result);
-  const accent =
-    result.type === "checkmate"
-      ? SIDE_THEME[result.winner].accent
-      : "#d9c9a5";
-
   return (
     <div
       data-testid="result-overlay"
+      data-outcome={outcome ?? "none"}
       role="dialog"
       aria-modal="true"
       aria-label="대국 결과"
@@ -40,24 +53,29 @@ export function ResultOverlay({
         <p data-testid="result-detail" className="text-sm text-[#c9bda6]">
           {detail}
         </p>
+        {note && (
+          <p className="text-[11px] leading-relaxed text-[#7a7264]">{note}</p>
+        )}
 
         <div className="mt-2 flex w-full flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            data-testid="rematch-button"
-            onClick={onRematch}
+            data-testid={primary.testId}
+            onClick={primary.onClick}
             className="flex-1 rounded-full border border-[#6d5c42] bg-black/50 px-5 py-2.5 text-sm tracking-widest text-[#f2e2c4] transition-colors hover:border-[#c9a86a] hover:text-[#ffeccb]"
           >
-            재대국
+            {primary.label}
           </button>
-          <button
-            type="button"
-            data-testid="result-title-button"
-            onClick={onTitle}
-            className="flex-1 rounded-full border border-[#2c2721] bg-black/40 px-5 py-2.5 text-sm tracking-widest text-[#8d8477] transition-colors hover:border-[#4c453a] hover:text-[#c9bda6]"
-          >
-            타이틀로
-          </button>
+          {secondary && (
+            <button
+              type="button"
+              data-testid={secondary.testId}
+              onClick={secondary.onClick}
+              className="flex-1 rounded-full border border-[#2c2721] bg-black/40 px-5 py-2.5 text-sm tracking-widest text-[#8d8477] transition-colors hover:border-[#4c453a] hover:text-[#c9bda6]"
+            >
+              {secondary.label}
+            </button>
+          )}
         </div>
       </div>
     </div>

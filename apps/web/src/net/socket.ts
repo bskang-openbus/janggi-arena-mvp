@@ -28,8 +28,24 @@ import {
   type SeatedAck,
 } from "./protocol";
 
-export const SERVER_URL =
+const DEFAULT_SERVER_URL =
   process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3001";
+
+/**
+ * 접속할 서버 주소.
+ *
+ * `?server=` 쿼리로 덮어쓸 수 있다 — 빌드 시점에 박히는 env와 달리 실행 중에
+ * 바꿀 수 있어야 "서버가 꺼져 있어도 로컬 대국은 동작한다"(CLAUDE.md 절대
+ * 규칙 7)를 E2E로 증명할 수 있고, 배포된 페이지로 다른 서버를 붙여보는 데도
+ * 쓸 수 있다.
+ */
+export function serverUrl(): string {
+  if (typeof window !== "undefined") {
+    const override = new URLSearchParams(window.location.search).get("server");
+    if (override) return override;
+  }
+  return DEFAULT_SERVER_URL;
+}
 
 /** How long an ack may take before we give up on it. */
 const ACK_TIMEOUT_MS = 10_000;
@@ -64,7 +80,7 @@ export function connect(handlers: ServerHandlers): Promise<Socket> {
   if (socket?.connected) return Promise.resolve(socket);
   disconnect();
 
-  const next = io(SERVER_URL, {
+  const next = io(serverUrl(), {
     transports: ["websocket"],
     reconnection: false,
     timeout: CONNECT_TIMEOUT_MS,

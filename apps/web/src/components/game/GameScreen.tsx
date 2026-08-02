@@ -1,13 +1,17 @@
 "use client";
 
+import type { GameResult, Side } from "engine";
 import { useEffect } from "react";
 import { JanggiScene } from "@/src/components/board/JanggiScene";
 import { SIDE_THEME } from "@/src/components/board/palette";
-import { SIDE_LABEL } from "@/src/game/adapters";
+import { matchResultLabel, resultLabel, SIDE_LABEL } from "@/src/game/adapters";
+import { useOnlineStore } from "@/src/game/online";
 import { useGameStore } from "@/src/game/store";
+import type { MatchResult } from "@/src/net/protocol";
 import { CapturedPanel } from "./CapturedPanel";
 import { CinematicOverlay } from "./CinematicOverlay";
 import { E2EBridge } from "./E2EBridge";
+import { OnlineHud } from "./OnlineHud";
 import { ResultOverlay } from "./ResultOverlay";
 import { SettingsOverlay } from "./SettingsOverlay";
 import { VictoryOverlay } from "./VictoryOverlay";
@@ -25,7 +29,15 @@ export function GameScreen() {
   const canPass = useGameStore((s) => s.canPass);
   const turn = useGameStore((s) => s.state.turn);
   const result = useGameStore((s) => s.state.result);
-  const moveCount = useGameStore((s) => s.state.history.length);
+  const moveCount = useGameStore((s) => s.moveCount);
+
+  /* ── P5 온라인 ─────────────────────────────────────────────────── */
+  const mode = useGameStore((s) => s.mode);
+  const mySide = useGameStore((s) => s.mySide);
+  const matchResult = useGameStore((s) => s.matchResult);
+  const askResign = useOnlineStore((s) => s.askResign);
+  const leaveRoom = useOnlineStore((s) => s.leave);
+  const online = mode === "online";
 
   const cinematic = useGameStore((s) => s.cinematic);
   const cinematicPhase = useGameStore((s) => s.cinematicPhase);
@@ -58,12 +70,22 @@ export function GameScreen() {
   const playing = cinematicPhase === "cinematic";
   const celebrating = victory !== null;
   const lowSpec = settings.lowSpec;
+  const finished = online ? matchResult !== null : result !== null;
+  const myTurn = !online || turn === mySide;
 
   return (
     <main
       data-testid="game-screen"
+      data-mode={mode}
+      data-my-side={mySide ?? "none"}
       data-turn={turn}
-      data-result={result ? result.type : "playing"}
+      data-result={
+        online
+          ? (matchResult?.type ?? "playing")
+          : result
+            ? result.type
+            : "playing"
+      }
       data-cinematic={cinematicPhase}
       data-victory={celebrating ? "playing" : "idle"}
       className="relative h-dvh w-full touch-none overflow-hidden bg-[#05060b]"
@@ -84,6 +106,7 @@ export function GameScreen() {
         onDecalCommit={commitDecal}
         victory={victory}
         onVictoryEnd={endVictory}
+        viewSide={online && mySide ? mySide : "cho"}
       />
 
       {/* HUD dims while the cinematic runs so the duel owns the frame */}
@@ -107,6 +130,7 @@ export function GameScreen() {
             }}
           >
             {SIDE_LABEL[turn]} 차례
+            {online && !finished && (myTurn ? " (내 차례)" : " (대기)")}
           </span>
           <span className="rounded-full border border-[#2c2721] bg-black/45 px-3 py-1.5 text-[11px] text-[#8d8477] backdrop-blur">
             {moveCount}수
@@ -151,22 +175,44 @@ export function GameScreen() {
           onClick={pass}
           disabled={!canPass}
           title={
-            result
+            finished
               ? "대국이 종료되었습니다"
-              : inCheck
-                ? "장군 상태에서는 한수쉼(패스)을 할 수 없습니다"
-                : "한수쉼 — 차례를 넘깁니다"
+              : online && !myTurn
+                ? "상대 차례입니다"
+                : inCheck
+                  ? "장군 상태에서는 한수쉼(패스)을 할 수 없습니다"
+                  : "한수쉼 — 차례를 넘깁니다"
           }
         >
           한수쉼
         </ControlButton>
-        <ControlButton
-          testId="restart-button"
-          onClick={restart}
-          title="처음부터 다시 시작합니다"
-        >
-          재시작
-        </ControlButton>
+        {online ? (
+          <>
+            <ControlButton
+              testId="resign-button"
+              onClick={() => askResign(true)}
+              disabled={finished}
+              title="항복하고 대국을 마칩니다"
+            >
+              항복
+            </ControlButton>
+            <ControlButton
+              testId="leave-room-button"
+              onClick={() => void leaveRoom()}
+              title="방을 나가 타이틀로 돌아갑니다 (대국 중이면 기권 처리)"
+            >
+              방 나가기
+            </ControlButton>
+          </>
+        ) : (
+          <ControlButton
+            testId="restart-button"
+            onClick={restart}
+            title="처음부터 다시 시작합니다"
+          >
+            재시작
+          </ControlButton>
+        )}
         <ControlButton
           testId="lowspec-button"
           onClick={() => updateSettings({ lowSpec: !lowSpec })}
@@ -182,15 +228,19 @@ export function GameScreen() {
         >
           설정
         </ControlButton>
-        <ControlButton
-          testId="to-title-button"
-          onClick={goTitle}
-          title="타이틀 화면으로 돌아갑니다"
-        >
-          타이틀
-        </ControlButton>
+        {!online && (
+          <ControlButton
+            testId="to-title-button"
+            onClick={goTitle}
+            title="타이틀 화면으로 돌아갑니다"
+          >
+            타이틀
+          </ControlButton>
+        )}
       </div>
       </div>
+
+      {online && <OnlineHud />}
 
       {playing && <CinematicOverlay onSkip={skipCinematic} />}
 
@@ -206,12 +256,79 @@ export function GameScreen() {
         />
       )}
 
-      {result && !playing && !celebrating && (
-        <ResultOverlay result={result} onRematch={restart} onTitle={goTitle} />
+      {finished && !playing && !celebrating && (
+        <MatchResultOverlay
+          online={online}
+          result={result}
+          matchResult={matchResult}
+          mySide={mySide}
+          onRematch={restart}
+          onTitle={goTitle}
+          onLeave={() => void leaveRoom()}
+        />
       )}
 
       <E2EBridge />
     </main>
+  );
+}
+
+/**
+ * 로컬(엔진 결과)과 온라인(서버 판정)을 같은 오버레이로 보여준다.
+ * 온라인은 재대국 버튼 대신 "방 나가기" 하나 — 재대국은 새 방에서 한다.
+ */
+function MatchResultOverlay({
+  online,
+  result,
+  matchResult,
+  mySide,
+  onRematch,
+  onTitle,
+  onLeave,
+}: {
+  online: boolean;
+  result: GameResult | null;
+  matchResult: MatchResult | null;
+  mySide: Side | null;
+  onRematch: () => void;
+  onTitle: () => void;
+  onLeave: () => void;
+}) {
+  if (online && matchResult) {
+    const { title, detail, outcome } = matchResultLabel(matchResult, mySide);
+    const accent =
+      outcome === "win" ? "#3ce9ca" : outcome === "lose" ? "#ff6a5a" : "#d9c9a5";
+    return (
+      <ResultOverlay
+        title={title}
+        detail={detail}
+        accent={accent}
+        outcome={outcome}
+        note="재대국하려면 방을 나간 뒤 새 방을 만들거나 방 코드로 입장하세요."
+        primary={{
+          label: "방 나가기",
+          testId: "result-leave-button",
+          onClick: onLeave,
+        }}
+      />
+    );
+  }
+  if (!result) return null;
+  const { title, detail } = resultLabel(result);
+  const accent =
+    result.type === "checkmate" ? SIDE_THEME[result.winner].accent : "#d9c9a5";
+  return (
+    <ResultOverlay
+      title={title}
+      detail={detail}
+      accent={accent}
+      primary={{ label: "재대국", testId: "rematch-button", onClick: onRematch }}
+      secondary={{
+        label: "타이틀로",
+        testId: "result-title-button",
+        onClick: onTitle,
+      }}
+    />
   );
 }
 
