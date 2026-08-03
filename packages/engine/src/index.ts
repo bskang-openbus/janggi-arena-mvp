@@ -43,6 +43,10 @@ export {
 
 export { allPseudoLegalMoves, pseudoLegalMovesFrom } from "./movegen.js";
 
+/* ------------------------------------------------------------------- AI (P7) */
+export type { AiLevel, AiOptions, AiResult } from "./ai/types.js";
+export { PIECE_VALUE, chooseAiAction } from "./ai/index.js";
+
 export {
   allLegalActions,
   applyAction,
