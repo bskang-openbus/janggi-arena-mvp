@@ -11,6 +11,8 @@ import { useGameStore } from "@/src/game/store";
 import type { MatchResult } from "@/src/net/protocol";
 import { CapturedPanel } from "./CapturedPanel";
 import { CinematicOverlay } from "./CinematicOverlay";
+import { preloadChibi } from "./cutin";
+import { CutinLayer } from "./CutinLayer";
 import { E2EBridge } from "./E2EBridge";
 import { OnlineHud } from "./OnlineHud";
 import { ResultOverlay } from "./ResultOverlay";
@@ -70,6 +72,12 @@ export function GameScreen() {
   useEffect(() => {
     hydrateSettings();
   }, [hydrateSettings]);
+
+  // P8: 치비 컷인 스프라이트 14장을 대국 진입 시 미리 받아 둔다. 실패해도
+  // 게임 흐름에는 영향이 없다 (해당 컷인만 생략 + 콘솔 워닝).
+  useEffect(() => {
+    preloadChibi();
+  }, []);
 
   const turnTheme = SIDE_THEME[turn];
   const inCheck = checkSide !== null;
@@ -282,6 +290,10 @@ export function GameScreen() {
       {victory && (
         <VictoryOverlay winner={victory.winner} onSkip={skipVictory} />
       )}
+
+      {/* P8 치비 컷인 — 연출 오버레이(z-30) 위, 설정(z-40) 아래.
+          pointer-events-none이라 "연출 스킵" 탭은 그대로 통과한다 */}
+      <CutinLayer />
 
       {settingsOpen && (
         <SettingsOverlay

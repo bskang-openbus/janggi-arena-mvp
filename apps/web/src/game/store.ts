@@ -100,11 +100,18 @@ export interface Settings {
   sound: boolean;
   /** 저사양 모드 — 후처리 OFF + 파티클 감소 */
   lowSpec: boolean;
+  /** 캐릭터 컷인 (P8) — 포획 타격·외통 승리에 SD 치비 스프라이트 컷인 */
+  cutin: boolean;
 }
 
 const SETTINGS_KEY = "janggi.settings.v1";
 
-const DEFAULT_SETTINGS: Settings = { gore: true, sound: true, lowSpec: false };
+const DEFAULT_SETTINGS: Settings = {
+  gore: true,
+  sound: true,
+  lowSpec: false,
+  cutin: true,
+};
 
 function loadSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
@@ -116,6 +123,7 @@ function loadSettings(): Settings {
       gore: parsed.gore ?? DEFAULT_SETTINGS.gore,
       sound: parsed.sound ?? DEFAULT_SETTINGS.sound,
       lowSpec: parsed.lowSpec ?? DEFAULT_SETTINGS.lowSpec,
+      cutin: parsed.cutin ?? DEFAULT_SETTINGS.cutin,
     };
   } catch {
     return DEFAULT_SETTINGS;

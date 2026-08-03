@@ -19,6 +19,7 @@ import {
 import { victoryStage } from "@/src/components/board/vfx/victory";
 import { pieceAtSquare } from "@/src/game/adapters";
 import { useGameStore } from "@/src/game/store";
+import { chibiStats, cutinRuntime } from "./cutin";
 
 /**
  * TEST-ONLY input bridge.
@@ -128,6 +129,24 @@ export interface JanggiTestApi {
     sfx: Record<string, number>;
     /** AudioContext 상태 ("none" | "suspended" | "running") */
     sfxState: string;
+    /** P8 치비 컷인 상태 */
+    cutin: {
+      /** 설정 토글 (기본 ON) */
+      enabled: boolean;
+      /** "capture" | "victory" | null — 지금 붙어 있는 컷인 */
+      kind: string | null;
+      /** 실제로 화면에 보이는 중인가 (불투명도 > 0.02) */
+      visible: boolean;
+      /** DOM에 붙어 있고 디코딩까지 끝난 이미지 수 (naturalWidth > 0) */
+      loaded: number;
+      /** 붙어 있는 img 수 (로딩 실패로 생략된 것은 제외) */
+      mounted: number;
+      attacker: string | null;
+      victim: string | null;
+      /** 프리로드 성공/실패 집계 (총 14장) */
+      preloaded: number;
+      failed: number;
+    };
   };
   /**
    * Reads the WebGL framebuffer back through a 2D canvas so a test can prove
@@ -287,6 +306,17 @@ export function E2EBridge() {
           sound: s.settings.sound,
           sfx: { ...sfxCounts },
           sfxState: sfxState(),
+          cutin: {
+            enabled: s.settings.cutin,
+            kind: cutinRuntime.kind,
+            visible: cutinRuntime.visible,
+            loaded: cutinRuntime.loaded,
+            mounted: cutinRuntime.mounted,
+            attacker: cutinRuntime.attacker,
+            victim: cutinRuntime.victim,
+            preloaded: chibiStats.ready,
+            failed: chibiStats.failed,
+          },
         };
       },
     };
