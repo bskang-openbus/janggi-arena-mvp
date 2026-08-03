@@ -133,3 +133,10 @@ ALL_DONE
 - [x] engine: AI 탐색 모듈 — docs/AI_API.md 계약 구현 (3난이도, 합법성 퍼즈·seed 재현·실력 서열·외통 선택 테스트) — `src/ai/{attacks,eval,search,rng,index}.ts`, 신규 테스트 22개(총 **237 green**), 고급 초기 국면 깊이 4·11.5만 노드/1.2s, 고급 vs 초급 10판 **W8 D2 L0**
 - [x] web: 컴퓨터 대국 모드 — 타이틀 진입, 난이도(초급/중급/고급)·진영 선택, Web Worker 탐색, "생각 중" 표시, AI 수에도 동일 연출, E2E + 스크린샷
 - 게이트: `pnpm -F engine test` && `pnpm -F web build` && `pnpm -F web e2e` 전체 green
+
+## P8. SD 치비 캐릭터 연출 (사용자 요청, CLAUDE.md 8절)
+
+- [x] 14기물(7종×2진영) 캐릭터 아트 생성 — Higgsfield nano_banana_pro, 여성 9/14(64%), 한자 표기 머리띠/등깃발(背旗) 혼용, 시안 2종 사용자 승인 후 12종 확장, 전수 감사 합격 → `design/chibi/`
+- [ ] 배경 제거(투명 컷아웃) 후 `apps/web/public/chibi/` 배치
+- [ ] 포획 연출 컷인 통합: 타격 순간(1.2s) 공격측 캐릭터 + 피격측 캐릭터 잔상 컷인, 로딩 실패 시 기존 연출 폴백, 설정 토글
+- 게이트: `pnpm -F web build` && `pnpm -F web e2e` 전체 green (기존 30개 회귀 없음)
