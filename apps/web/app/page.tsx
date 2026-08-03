@@ -1,14 +1,16 @@
 "use client";
 
 import { SfxDirector } from "@/src/audio/SfxDirector";
+import { AiSetupScreen } from "@/src/components/game/AiSetupScreen";
 import { GameScreen } from "@/src/components/game/GameScreen";
 import { OnlineLobby } from "@/src/components/game/OnlineLobby";
 import { TitleScreen } from "@/src/components/game/TitleScreen";
 import { useGameStore } from "@/src/game/store";
 
 /**
- * Single-route app: 타이틀 ↔ 로비 ↔ 대국 is a store transition, not navigation,
- * so the WebGL context (and its procedural textures) survives the switch.
+ * Single-route app: 타이틀 ↔ 로비 ↔ 컴퓨터 대국 설정 ↔ 대국 is a store
+ * transition, not navigation, so the WebGL context (and its procedural
+ * textures) survives the switch.
  *
  * `SfxDirector`는 화면 바깥(루트)에 둔다 — 대국 화면에만 붙어 있으면 타이틀·
  * 로비의 버튼음이 나지 않고, 첫 클릭(= 브라우저 오디오 잠금 해제 제스처)이
@@ -23,6 +25,8 @@ export default function Home() {
         <TitleScreen />
       ) : screen === "lobby" ? (
         <OnlineLobby />
+      ) : screen === "ai-setup" ? (
+        <AiSetupScreen />
       ) : (
         <GameScreen />
       )}

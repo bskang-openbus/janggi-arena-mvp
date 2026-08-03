@@ -8,7 +8,15 @@
  * Derived values are materialised into the store (rather than computed in
  * selectors) so components can subscribe to stable references.
  */
-import type { Board, GameResult, GameState, Piece, Side, Square } from "engine";
+import type {
+  Action,
+  Board,
+  GameResult,
+  GameState,
+  Piece,
+  Side,
+  Square,
+} from "engine";
 import {
   applyAction,
   findGeneral,
@@ -20,6 +28,8 @@ import {
   stateFrom,
 } from "engine";
 import { create } from "zustand";
+import type { AiLevel } from "@/src/ai/aiClient";
+import { aiTiming, requestAiAction } from "@/src/ai/aiClient";
 import type { PieceView, SquareRef } from "@/src/components/board/types";
 import type { BloodDecal } from "@/src/components/board/vfx/BloodDecals";
 import { variantIdFor } from "@/src/components/board/vfx/attackVariants";
@@ -40,10 +50,32 @@ import {
   squareOfPieceId,
 } from "./adapters";
 
-export type Screen = "title" | "lobby" | "game";
+export type Screen = "title" | "lobby" | "ai-setup" | "game";
 
-/** 로컬 2인 대국 / 서버 권위 온라인 대국 (P5). */
-export type Mode = "local" | "online";
+/**
+ * 로컬 2인 대국 / 서버 권위 온라인 대국 (P5) / 컴퓨터 대국 (P7).
+ *
+ * "ai"는 판정 주체가 로컬 엔진이라는 점에서 "local"과 같고 (온라인처럼 서버를
+ * 기다리지 않는다), 한쪽 차례에 입력이 잠긴다는 점에서 "online"과 같다.
+ */
+export type Mode = "local" | "online" | "ai";
+
+/** 컴퓨터 대국 설정 (P7). 재시작은 이 설정을 그대로 유지한다. */
+export interface AiConfig {
+  level: AiLevel;
+  /** 사람이 맡은 진영 — 카메라 시점·입력 허용의 기준. AI는 그 반대편 */
+  mySide: Side;
+  /** 지정 시 AI가 완전히 재현 가능해진다 (E2E) */
+  seed?: number;
+}
+
+/** AI 응답에 실려 온 탐색 지표 (표시·진단용). */
+export interface AiInfo {
+  score: number;
+  depth: number;
+  nodes: number;
+  elapsedMs: number;
+}
 
 /**
  * 온라인 모드에서 보드 입력이 서버로 나가는 통로.
@@ -182,9 +214,23 @@ export interface GameStore extends Derived {
   matchResult: MatchResult | null;
   net: OnlineNet | null;
 
+  /* ── P7 컴퓨터 대국 ───────────────────────────────────────────── */
+  /** mode "ai"에서만 non-null. 재시작이 같은 설정을 쓰는 근거 */
+  aiConfig: AiConfig | null;
+  /** AI가 수를 고르고 있다 (최소 사고 시간 포함) — 그동안 입력 잠금 */
+  aiThinking: boolean;
+  /** 연출 재생 중에 도착해 아직 적용하지 못한 AI의 수 (online의 pending과 같은 역할) */
+  aiPending: Action | null;
+  /** 마지막 AI 응답의 탐색 지표 */
+  aiInfo: AiInfo | null;
+
   goTitle: () => void;
   goLobby: () => void;
+  /** 컴퓨터 대국 — 난이도·진영 선택 화면 */
+  goAiSetup: () => void;
   startLocalGame: () => void;
+  /** 선택한 난이도·진영으로 컴퓨터 대국 시작 (사람이 한이면 AI가 먼저 둔다) */
+  startAiGame: (config: AiConfig) => void;
   /** 서버가 game:start를 보냈다 — 온라인 대국 화면으로 전환 */
   startOnlineMatch: (
     mySide: Side,
@@ -231,7 +277,10 @@ function freshGame() {
   };
 }
 
-/** 온라인 세션 흔적을 지운다 — 로컬 대국은 항상 이 상태에서 시작한다. */
+/**
+ * 온라인 세션 · 컴퓨터 대국 흔적을 지운다 — 로컬 대국은 항상 이 상태에서
+ * 시작한다. mode "ai"는 이 기본값 위에 자기 필드를 덮어쓴다.
+ */
 function offlineDefaults() {
   return {
     mode: "local" as Mode,
@@ -240,6 +289,24 @@ function offlineDefaults() {
     pending: [] as GameSnapshot[],
     matchResult: null,
     net: null,
+    aiConfig: null,
+    aiThinking: false,
+    aiPending: null as Action | null,
+    aiInfo: null,
+  };
+}
+
+/** 컴퓨터 대국 한 판의 시작 상태 (설정은 유지, 판은 초기화). */
+function aiDefaults(config: AiConfig) {
+  return {
+    mode: "ai" as Mode,
+    mySide: config.mySide,
+    aiConfig: config,
+    aiThinking: false,
+    aiPending: null as Action | null,
+    aiInfo: null,
+    // 초가 선수이므로 사람이 한이면 첫 차례는 AI다 → 한수쉼도 잠긴다
+    canPass: config.mySide === "cho",
   };
 }
 
@@ -372,6 +439,12 @@ function commit(
   // than fight: 포획 연출이 끝나야 승리 연출이 시작된다.
   const victoryPlan = victoryFor(next);
 
+  const derived = derive(next);
+  // 컴퓨터 대국: 내 차례가 아니면 한수쉼도 불가 (AI 차례에 판을 건드릴 수 없다)
+  if (prev.mode === "ai" && prev.aiConfig) {
+    derived.canPass = derived.canPass && next.turn === prev.aiConfig.mySide;
+  }
+
   return {
     state: next,
     selectedId: null,
@@ -382,7 +455,7 @@ function commit(
     pendingDecal: staged?.pendingDecal ?? null,
     victory: cinematic ? null : victoryPlan,
     pendingVictory: cinematic ? victoryPlan : null,
-    ...derive(next),
+    ...derived,
   };
 }
 
@@ -478,9 +551,20 @@ function flushDecal(store: GameStore): Partial<GameStore> {
 /**
  * 지금 이 클라이언트가 판을 건드릴 수 있는가?
  * 로컬은 언제나 예(한 화면에서 두 명이 번갈아 둔다), 온라인은 대국이
- * 진행 중이고 *내 차례* 일 때만.
+ * 진행 중이고 *내 차례* 일 때만, 컴퓨터 대국은 내 차례이고 AI가 생각하거나
+ * 착수를 기다리고 있지 않을 때만.
  */
 function canAct(store: GameStore): boolean {
+  if (store.mode === "ai") {
+    const config = store.aiConfig;
+    return (
+      !!config &&
+      !store.state.result &&
+      store.state.turn === config.mySide &&
+      !store.aiThinking &&
+      store.aiPending === null
+    );
+  }
   if (store.mode !== "online") return true;
   const snap = store.snapshot;
   return (
@@ -509,6 +593,10 @@ export const useGameStore = create<GameStore>((set, get) => {
    */
   const drainPending = () => {
     const s = get();
+    if (s.mode === "ai") {
+      drainAi();
+      return;
+    }
     if (s.mode !== "online") return;
     if (s.cinematicPhase !== "idle" || s.victory) return;
     const [next, ...rest] = s.pending;
@@ -518,6 +606,102 @@ export const useGameStore = create<GameStore>((set, get) => {
     drainPending();
   };
 
+  /* ── P7 컴퓨터 대국 진행 ───────────────────────────────────────── */
+
+  /**
+   * 진행 중인 사고·예약 착수를 무효화하는 세대 번호.
+   *
+   * AI 응답은 워커 왕복 + 최소 사고 시간 타이머를 지나 도착하므로, 그 사이
+   * 재시작·타이틀 복귀·모드 전환이 일어날 수 있다. 응답을 받을 때 세대가
+   * 바뀌었으면 조용히 버린다 (지난 판의 수가 새 판에 떨어지는 사고 방지).
+   */
+  let aiGeneration = 0;
+  const cancelAi = () => {
+    aiGeneration += 1;
+  };
+
+  /** AI의 수를 엔진에 적용한다 — 연출·사운드는 사람 수와 완전히 같은 경로. */
+  const applyAiAction = (action: Action) => {
+    const s = get();
+    if (s.mode !== "ai" || s.state.result) return;
+    // 방어: 계약상 항상 합법이지만, 아니면 한수쉼으로 대체해 판을 살린다
+    const safe: Action = isLegal(s.state, action) ? action : { kind: "pass" };
+    if (!isLegal(s.state, safe)) return;
+    set(commit(s, applyAction(s.state, safe)));
+  };
+
+  /**
+   * 사고가 끝났다. 연출(포획·승리)이 돌고 있으면 큐에 쌓아두고 끝난 뒤에
+   * 적용한다 — online의 pending과 같은 규약이다. 연출 중에 판이 바뀌면
+   * 결투 장면의 기물이 사라지거나 갑자기 순간이동한다.
+   */
+  const deliverAi = (action: Action) => {
+    const s = get();
+    if (s.cinematicPhase !== "idle" || s.victory) {
+      set({ aiThinking: false, aiPending: action });
+      return;
+    }
+    set({ aiThinking: false, aiPending: null });
+    applyAiAction(action);
+  };
+
+  /** 연출이 끝난 직후 대기 중인 AI의 수를 흘려보낸다. */
+  const drainAi = () => {
+    const s = get();
+    if (s.mode !== "ai" || !s.aiPending) return;
+    if (s.cinematicPhase !== "idle" || s.victory) return;
+    const action = s.aiPending;
+    set({ aiPending: null });
+    applyAiAction(action);
+  };
+
+  /**
+   * AI 차례면 사고를 시작한다. 사람 수가 적용된 직후에 호출되므로 포획 연출과
+   * 사고가 병행되고(연출 2.8초를 사고 시간으로 쓴다), 결과는 연출이 끝난 뒤에
+   * 적용된다.
+   */
+  const aiTurn = () => {
+    const s = get();
+    const config = s.aiConfig;
+    if (s.mode !== "ai" || !config) return;
+    if (s.state.result) return;
+    if (s.state.turn === config.mySide) return;
+    if (s.aiThinking || s.aiPending) return;
+
+    const generation = (aiGeneration += 1);
+    const startedAt = Date.now();
+    set({ aiThinking: true });
+
+    void requestAiAction(s.state, { level: config.level, seed: config.seed })
+      .then((result) => {
+        if (generation !== aiGeneration) return;
+        set({
+          aiInfo: {
+            score: result.score,
+            depth: result.depth,
+            nodes: result.nodes,
+            elapsedMs: result.elapsedMs,
+          },
+        });
+        // 즉답은 어색하다 — 총 사고 시간이 하한을 넘도록 남은 만큼 기다린다
+        const rest = Math.max(0, aiTiming.minThinkMs - (Date.now() - startedAt));
+        setTimeout(() => {
+          if (generation !== aiGeneration) return;
+          deliverAi(result.action);
+        }, rest);
+      })
+      .catch(() => {
+        if (generation !== aiGeneration) return;
+        // AI를 얻지 못했다 (워커·폴백 모두 실패). 판을 멈추는 대신 한수쉼으로
+        // 차례를 넘겨 사람이 계속 둘 수 있게 한다
+        set({ aiThinking: false });
+        const cur = get();
+        if (cur.mode === "ai" && !cur.state.result) {
+          deliverAi({ kind: "pass" });
+        }
+      });
+  };
+
   return {
   screen: "title",
   settings: DEFAULT_SETTINGS,
@@ -525,29 +709,58 @@ export const useGameStore = create<GameStore>((set, get) => {
   ...offlineDefaults(),
   ...freshGame(),
 
-  goTitle: () =>
+  goTitle: () => {
+    cancelAi();
     set({
       screen: "title",
       settingsOpen: false,
       ...offlineDefaults(),
       ...freshGame(),
-    }),
+    });
+  },
 
-  goLobby: () =>
+  goLobby: () => {
+    cancelAi();
     set({
       screen: "lobby",
       settingsOpen: false,
       ...offlineDefaults(),
       ...freshGame(),
-    }),
+    });
+  },
 
-  startLocalGame: () =>
+  goAiSetup: () => {
+    cancelAi();
+    set({
+      screen: "ai-setup",
+      settingsOpen: false,
+      ...offlineDefaults(),
+      ...freshGame(),
+    });
+  },
+
+  startLocalGame: () => {
+    cancelAi();
     set({
       screen: "game",
       settingsOpen: false,
       ...offlineDefaults(),
       ...freshGame(),
-    }),
+    });
+  },
+
+  startAiGame: (config) => {
+    cancelAi();
+    set({
+      screen: "game",
+      settingsOpen: false,
+      ...offlineDefaults(),
+      ...freshGame(),
+      ...aiDefaults(config),
+    });
+    // 사람이 한(후수)이면 초를 맡은 AI가 첫 수를 둔다
+    aiTurn();
+  },
 
   startOnlineMatch: (mySide, snapshot, net) => {
     set({
@@ -582,7 +795,22 @@ export const useGameStore = create<GameStore>((set, get) => {
     set(fromSnapshot(s, snapshot));
   },
 
-  restart: () => set({ settingsOpen: false, ...offlineDefaults(), ...freshGame() }),
+  restart: () => {
+    const config = get().mode === "ai" ? get().aiConfig : null;
+    cancelAi();
+    if (config) {
+      // 컴퓨터 대국 재시작 = 같은 난이도·같은 진영·같은 seed
+      set({
+        settingsOpen: false,
+        ...offlineDefaults(),
+        ...freshGame(),
+        ...aiDefaults(config),
+      });
+      aiTurn();
+      return;
+    }
+    set({ settingsOpen: false, ...offlineDefaults(), ...freshGame() });
+  },
 
   endCinematic: () => {
     set((s) => ({
@@ -683,6 +911,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       set(commit(get(), applyAction(state, action)));
+      // 사람 수가 반영됐다 — AI 차례면 곧바로 사고를 시작한다 (포획 연출이
+      // 돌고 있으면 결과는 연출이 끝난 뒤에 적용된다)
+      if (mode === "ai") aiTurn();
       return;
     }
 
@@ -703,6 +934,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     const action = { kind: "pass" } as const;
     if (!isLegal(state, action)) return;
     set(commit(get(), applyAction(state, action)));
+    if (mode === "ai") aiTurn();
   },
   };
 });
