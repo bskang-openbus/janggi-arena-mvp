@@ -21,6 +21,7 @@ import { TraditionalPattern } from "./TraditionalPattern";
  */
 export function TitleScreen() {
   const startLocalGame = useGameStore((s) => s.startLocalGame);
+  const goAiSetup = useGameStore((s) => s.goAiSetup);
   const openLobby = useOnlineStore((s) => s.openLobby);
   const error = useOnlineStore((s) => s.error);
   const dismissError = useOnlineStore((s) => s.dismissError);
@@ -108,11 +109,13 @@ export function TitleScreen() {
               onClick={
                 item.testId === "start-local-button"
                   ? startLocalGame
-                  : item.testId === "online-create-button"
-                    ? () => openLobby("create")
-                    : item.testId === "online-join-button"
-                      ? () => openLobby("join")
-                      : () => openSettings(true)
+                  : item.testId === "start-ai-button"
+                    ? goAiSetup
+                    : item.testId === "online-create-button"
+                      ? () => openLobby("create")
+                      : item.testId === "online-join-button"
+                        ? () => openLobby("join")
+                        : () => openSettings(true)
               }
             />
           ))}
@@ -120,6 +123,8 @@ export function TitleScreen() {
 
         <p className="mt-10 text-[11px] leading-relaxed text-[#6b6459]">
           로컬 대국은 한 화면에서 두 명이 번갈아 둡니다.
+          <br />
+          컴퓨터 대국은 난이도 3단계 중에서 고를 수 있습니다.
           <br />
           온라인 대국은 6자리 방 코드로 1:1 대국을 진행합니다.
         </p>
@@ -192,6 +197,16 @@ const MUTED = {
   text: "#c9bda6",
   wash: "rgba(140,132,119,0.06)",
 };
+/**
+ * 컴퓨터 대국 (P7). 초·한 어느 쪽도 아니므로 진영색을 쓸 수 없다 — 단청의
+ * 자주(紫)를 골라 "전통 x 판타지" 톤 안에 머물면서도 사람 대국과 구분된다.
+ */
+const MACHINE = {
+  edge: "#4f4270",
+  hot: "#c1a6ff",
+  text: "#ddd0ff",
+  wash: "rgba(150,110,235,0.10)",
+};
 
 const MENU: MenuItem[] = [
   {
@@ -201,6 +216,14 @@ const MENU: MenuItem[] = [
     hint: "한 화면에서 두 명이 번갈아",
     title: "한 기기에서 두 명이 번갈아 둡니다",
     tone: GOLD,
+  },
+  {
+    testId: "start-ai-button",
+    glyph: "智",
+    label: "컴퓨터 대국",
+    hint: "난이도 초급 · 중급 · 고급",
+    title: "컴퓨터를 상대로 둡니다 (난이도와 진영을 고를 수 있습니다)",
+    tone: MACHINE,
   },
   {
     testId: "online-create-button",

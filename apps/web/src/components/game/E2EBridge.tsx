@@ -1,7 +1,14 @@
 "use client";
 
+import type { Side } from "engine";
 import { parseNotation, toNotation } from "engine";
 import { useEffect } from "react";
+import {
+  AI_MIN_THINK_MS,
+  aiTiming,
+  aiWorkerActive,
+  type AiLevel,
+} from "@/src/ai/aiClient";
 import { sfxCounts, sfxState } from "@/src/audio/engine";
 import {
   cinematicClock,
@@ -52,6 +59,17 @@ export interface JanggiTestApi {
   seekCinematic: (t: number) => void;
   /** 승리 연출 스킵 — same action a tap on the victory overlay dispatches */
   skipVictory: () => void;
+  /**
+   * 컴퓨터 대국 시작 (P7) — 선택 화면의 "대국 시작" 버튼과 같은 스토어 액션.
+   * `seed`를 넣으면 AI가 완전히 재현되므로 기보가 결정적으로 고정된다.
+   */
+  startAi: (config: { level: AiLevel; mySide: Side; seed?: number }) => void;
+  /**
+   * AI 최소 사고 시간(하한)을 바꾼다. 기본 800ms는 "생각 중" 표시를 DOM에서
+   * 관찰하기엔 짧을 수 있어, 그 표시를 검사하는 테스트만 늘려 쓴다.
+   * 인수를 생략하면 기본값으로 되돌린다.
+   */
+  setAiThinkFloor: (ms?: number) => void;
   snapshot: () => {
     turn: string;
     result: string | null;
@@ -86,6 +104,22 @@ export interface JanggiTestApi {
       /** 서버 판정 결과 타입 (기권·시간초과 포함) */
       result: string | null;
       autoPass: { cho: number; han: number } | null;
+    } | null;
+    /** 컴퓨터 대국 상태 (P7) — 다른 모드에서는 null */
+    ai: {
+      level: number;
+      /** AI가 수를 고르고 있다 (최소 사고 시간 포함) */
+      thinking: boolean;
+      /** 사람이 맡은 진영 */
+      mySide: string;
+      /** 연출이 끝나기를 기다리는 AI의 수가 있다 */
+      pending: boolean;
+      seed: number | null;
+      /** 마지막 응답의 탐색 깊이 / 노드 수 (스텁이면 가짜 값) */
+      depth: number | null;
+      nodes: number | null;
+      /** 탐색이 Web Worker에서 돌고 있는가 (false = 메인 스레드 폴백) */
+      worker: boolean;
     } | null;
     /** 사운드 ON/OFF (설정 오버레이) */
     sound: boolean;
@@ -164,6 +198,12 @@ export function E2EBridge() {
       skipVictory: () => {
         useGameStore.getState().skipVictory();
       },
+      startAi: (config) => {
+        useGameStore.getState().startAiGame(config);
+      },
+      setAiThinkFloor: (ms) => {
+        aiTiming.minThinkMs = ms ?? AI_MIN_THINK_MS;
+      },
       sampleFrame: () => {
         const canvas = document.querySelector("canvas");
         if (!canvas) return null;
@@ -231,6 +271,19 @@ export function E2EBridge() {
                   autoPass: s.snapshot?.autoPassCount ?? null,
                 }
               : null,
+          ai:
+            s.mode === "ai" && s.aiConfig
+              ? {
+                  level: s.aiConfig.level,
+                  thinking: s.aiThinking,
+                  mySide: s.aiConfig.mySide,
+                  pending: s.aiPending !== null,
+                  seed: s.aiConfig.seed ?? null,
+                  depth: s.aiInfo?.depth ?? null,
+                  nodes: s.aiInfo?.nodes ?? null,
+                  worker: aiWorkerActive(),
+                }
+              : null,
           sound: s.settings.sound,
           sfx: { ...sfxCounts },
           sfxState: sfxState(),
@@ -241,6 +294,7 @@ export function E2EBridge() {
     window.__janggi = api;
     return () => {
       resetCinematicClock();
+      aiTiming.minThinkMs = AI_MIN_THINK_MS;
       delete window.__janggi;
     };
   }, []);

@@ -2,6 +2,7 @@
 
 import type { GameResult, Side } from "engine";
 import { useEffect } from "react";
+import { aiLevelInfo } from "@/src/ai/aiClient";
 import { JanggiScene } from "@/src/components/board/JanggiScene";
 import { SIDE_THEME } from "@/src/components/board/palette";
 import { matchResultLabel, resultLabel, SIDE_LABEL } from "@/src/game/adapters";
@@ -39,6 +40,11 @@ export function GameScreen() {
   const leaveRoom = useOnlineStore((s) => s.leave);
   const online = mode === "online";
 
+  /* ── P7 컴퓨터 대국 ───────────────────────────────────────────── */
+  const aiConfig = useGameStore((s) => s.aiConfig);
+  const aiThinking = useGameStore((s) => s.aiThinking);
+  const vsAi = mode === "ai" && aiConfig !== null;
+
   const cinematic = useGameStore((s) => s.cinematic);
   const cinematicPhase = useGameStore((s) => s.cinematicPhase);
   const decals = useGameStore((s) => s.decals);
@@ -71,7 +77,7 @@ export function GameScreen() {
   const celebrating = victory !== null;
   const lowSpec = settings.lowSpec;
   const finished = online ? matchResult !== null : result !== null;
-  const myTurn = !online || turn === mySide;
+  const myTurn = online || vsAi ? turn === mySide : true;
 
   return (
     <main
@@ -88,6 +94,7 @@ export function GameScreen() {
       }
       data-cinematic={cinematicPhase}
       data-victory={celebrating ? "playing" : "idle"}
+      data-ai={vsAi ? (aiThinking ? "thinking" : "idle") : "off"}
       className="relative h-dvh w-full touch-none overflow-hidden bg-[#05060b]"
     >
       <JanggiScene
@@ -106,7 +113,7 @@ export function GameScreen() {
         onDecalCommit={commitDecal}
         victory={victory}
         onVictoryEnd={endVictory}
-        viewSide={online && mySide ? mySide : "cho"}
+        viewSide={(online || vsAi) && mySide ? mySide : "cho"}
       />
 
       {/* HUD dims while the cinematic runs so the duel owns the frame */}
@@ -131,11 +138,33 @@ export function GameScreen() {
           >
             {SIDE_LABEL[turn]} 차례
             {online && !finished && (myTurn ? " (내 차례)" : " (대기)")}
+            {vsAi && !finished && (myTurn ? " (내 차례)" : " (컴퓨터)")}
           </span>
           <span className="rounded-full border border-[#2c2721] bg-black/45 px-3 py-1.5 text-[11px] text-[#8d8477] backdrop-blur">
             {moveCount}수
           </span>
+          {vsAi && aiConfig && (
+            <span
+              data-testid="ai-level-badge"
+              data-level={aiConfig.level}
+              title={aiLevelInfo(aiConfig.level).hint}
+              className="rounded-full border border-[#4f4270] bg-[#140f22]/80 px-3 py-1.5 text-[11px] tracking-[0.18em] text-[#c1a6ff] backdrop-blur"
+            >
+              컴퓨터 · {aiLevelInfo(aiConfig.level).label}
+            </span>
+          )}
         </div>
+
+        {vsAi && aiThinking && !finished && (
+          <div
+            data-testid="ai-thinking"
+            role="status"
+            className="flex items-center gap-2 rounded-full border border-[#4f4270] bg-[#140f22]/85 px-4 py-1 text-xs tracking-[0.2em] text-[#ddd0ff] backdrop-blur md:text-sm"
+          >
+            <ThinkingDots />
+            AI 생각 중…
+          </div>
+        )}
 
         {inCheck && !result && (
           <div
@@ -177,8 +206,10 @@ export function GameScreen() {
           title={
             finished
               ? "대국이 종료되었습니다"
-              : online && !myTurn
-                ? "상대 차례입니다"
+              : !myTurn
+                ? vsAi
+                  ? "컴퓨터가 두는 중입니다"
+                  : "상대 차례입니다"
                 : inCheck
                   ? "장군 상태에서는 한수쉼(패스)을 할 수 없습니다"
                   : "한수쉼 — 차례를 넘깁니다"
@@ -208,7 +239,11 @@ export function GameScreen() {
           <ControlButton
             testId="restart-button"
             onClick={restart}
-            title="처음부터 다시 시작합니다"
+            title={
+              vsAi
+                ? "같은 난이도·같은 진영으로 다시 시작합니다"
+                : "처음부터 다시 시작합니다"
+            }
           >
             재시작
           </ControlButton>
@@ -350,6 +385,24 @@ function MatchResultOverlay({
         onClick: onTitle,
       }}
     />
+  );
+}
+
+/**
+ * "생각 중" 점 애니메이션. Tailwind의 `animate-bounce`를 서로 다른 delay로
+ * 세 번 쓴다 — 새 keyframes를 추가하지 않고도 점이 차례로 튄다.
+ */
+function ThinkingDots() {
+  return (
+    <span aria-hidden className="flex items-end gap-[3px]">
+      {[0, 160, 320].map((delay) => (
+        <span
+          key={delay}
+          className="size-1.5 animate-bounce rounded-full bg-[#c1a6ff]"
+          style={{ animationDelay: `${delay}ms`, animationDuration: "900ms" }}
+        />
+      ))}
+    </span>
   );
 }
 
