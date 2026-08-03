@@ -127,3 +127,9 @@ ALL_DONE
 - 남은 항목은 스트레치(P5 온라인 대국 / P6 마감)와 SKIP 처리된 2.5D 실루엣뿐
 - [2026-08-03 06:55] **P5(스트레치) 완료** — 온라인 1:1 대국(서버 + 웹 통합). 게이트 연속 2회: `pnpm -F engine test` 215 · `pnpm -F server test` 51 · `pnpm -F web build` · `pnpm -F web e2e` **23 green**. 남은 항목은 P6 마감과 2.5D 실루엣뿐
 - [2026-08-03 07:25] **P6(스트레치) 완료 — 전 페이즈 종료.** 사운드(합성 SFX 전역화)·저사양(이미터 전량 50%)·타이틀 스타일링(Pretendard + 프로시저럴 전통 문양)·결과 화면 통일·README·Docker Compose. 게이트: `pnpm -F engine test` **215** · `pnpm -F server test` **51** · `pnpm -F web build` 성공 · `pnpm -F web e2e` **26 green** · `docker compose build` 성공(+기동 스모크). **미완 항목은 P4의 2.5D 캐릭터 실루엣 `[S]` 하나뿐이며, 이는 SCENES.md 5절 지침에 따른 의도적 SKIP이다**
+
+## P7. 컴퓨터 대국 (사용자 추가 요청, 2026-08-03 아침)
+
+- [ ] engine: AI 탐색 모듈 — docs/AI_API.md 계약 구현 (3난이도, 합법성 퍼즈·seed 재현·실력 서열·외통 선택 테스트)
+- [ ] web: 컴퓨터 대국 모드 — 타이틀 진입, 난이도(초급/중급/고급)·진영 선택, Web Worker 탐색, "생각 중" 표시, AI 수에도 동일 연출, E2E + 스크린샷
+- 게이트: `pnpm -F engine test` && `pnpm -F web build` && `pnpm -F web e2e` 전체 green
