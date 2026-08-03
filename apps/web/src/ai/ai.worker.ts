@@ -16,9 +16,7 @@ import type {
 } from "./types";
 
 /* ─── AI 구현 스위치: 아래 import 한 줄이 스텁 ↔ 실제 엔진 전환점이다 ──── */
-// TODO(orchestrator): engine AI 머지 후 이 줄 교체
-import { chooseAiAction } from "./stub";
-// 머지 후 →  import { chooseAiAction } from "engine";
+import { chooseAiAction } from "engine";
 /* ─────────────────────────────────────────────────────────────────────── */
 
 /**

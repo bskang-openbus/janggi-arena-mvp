@@ -276,3 +276,9 @@
 - 성능 샘플(M-계열 노트북): 고급 초기 국면 깊이 4 / 114,688 노드 / 1,205ms(≈95k nodes/s), 중반 국면 깊이 5 / 296,704 노드. 중급 깊이 3 / ~2,200 노드 / 10~50ms. 초급 32 노드 / 1~2ms
 - 검증: `pnpm -F engine test` **237 green**(기존 215 + AI 22, 회귀 0) · `pnpm -F engine build` 성공 · `pnpm -F web build` 성공. AI 테스트: 등가성 퍼즈, 합법성 퍼즈 320국면×3난이도 + 자살수/비합법 pass 미반환, seed 재현성, 시간 예산(1.5배 이내), 1수 외통 3난이도 전부 선택, 공짜 차 포획, 우세 시 빅장 회피, 평가 대칭성, **고급(200ms) vs 초급 10판 W8 D2 L0(승+무 10) · 중급 vs 초급 6판 W6**
 - 영향: `packages/engine/src/ai/*`(신설 5파일 + 테스트 2파일), `packages/engine/src/index.ts`(export 추가만)
+
+### [2026-08-03 11:40] P7-web 컴퓨터 대국 — 통합·전환 (ai-web 에이전트 + 오케스트레이터)
+- 배경: 엔진 AI와 웹 UI를 병행 개발(워크트리), 웹은 스텁으로 개발 후 머지 시점에 실제 AI로 전환하는 계약
+- 결정: AI 참조를 ai.worker.ts 1곳에 격리(메인 스레드 폴백도 같은 모듈 재사용) → 머지 후 오케스트레이터가 import 1줄 교체 + stub.ts 삭제로 전환 완료. store는 mode 'ai' 가드 뒤에만 추가(로컬/온라인 분기 무수정), AI 사고 무효화는 세대 토큰, 연출 중 응답은 aiPending 큐잉(online pending 규약 동일), AI 실패 시 한수쉼 폴백. 사람이 한이면 AI(초)가 선수. E2E는 seed 고정 결정화
+- 검증: 전환 후 전체 게이트 green — engine 237, web build, E2E 30(신규 4: 선택 화면/AI 응수/생각 중 표시/한 시점)
+- 영향: apps/web/src/ai/*, game/store.ts, AiSetupScreen, 타이틀 카드, E2EBridge

@@ -131,5 +131,5 @@ ALL_DONE
 ## P7. 컴퓨터 대국 (사용자 추가 요청, 2026-08-03 아침)
 
 - [x] engine: AI 탐색 모듈 — docs/AI_API.md 계약 구현 (3난이도, 합법성 퍼즈·seed 재현·실력 서열·외통 선택 테스트) — `src/ai/{attacks,eval,search,rng,index}.ts`, 신규 테스트 22개(총 **237 green**), 고급 초기 국면 깊이 4·11.5만 노드/1.2s, 고급 vs 초급 10판 **W8 D2 L0**
-- [ ] web: 컴퓨터 대국 모드 — 타이틀 진입, 난이도(초급/중급/고급)·진영 선택, Web Worker 탐색, "생각 중" 표시, AI 수에도 동일 연출, E2E + 스크린샷
+- [x] web: 컴퓨터 대국 모드 — 타이틀 진입, 난이도(초급/중급/고급)·진영 선택, Web Worker 탐색, "생각 중" 표시, AI 수에도 동일 연출, E2E + 스크린샷
 - 게이트: `pnpm -F engine test` && `pnpm -F web build` && `pnpm -F web e2e` 전체 green
